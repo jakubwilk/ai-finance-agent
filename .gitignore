@@ -1,0 +1,9 @@
+# Real personal financial reference data — never commit actual values.
+# Only *.example.json templates (fake data) are tracked.
+data/local/*.json
+!data/local/*.example.json
+
+# Secrets
+.env
+.env.*
+!.env.example

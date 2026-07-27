@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Jedzenie",
+    "score": 100,
+    "type": "expense"
+  },
+  {
+    "name": "Czynsz i utrzymanie",
+    "score": 90,
+    "type": "expense"
+  },
+  {
+    "name": "Rozrywka",
+    "score": 30,
+    "type": "expense"
+  },
+  {
+    "name": "Wynagrodzenie",
+    "score": 100,
+    "type": "income"
+  }
+]

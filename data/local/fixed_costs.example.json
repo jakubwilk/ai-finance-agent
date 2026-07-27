@@ -1,0 +1,20 @@
+[
+  {
+    "name": "Czynsz za mieszkanie",
+    "category": "Czynsz i utrzymanie",
+    "expected_amount": 1500.00,
+    "frequency": "monthly"
+  },
+  {
+    "name": "Netflix",
+    "category": "Rozrywka",
+    "expected_amount": 43.00,
+    "frequency": "monthly"
+  },
+  {
+    "name": "Ubezpieczenie OC",
+    "category": "Czynsz i utrzymanie",
+    "expected_amount": 600.00,
+    "frequency": "yearly"
+  }
+]
