@@ -10,7 +10,10 @@ rekomendacje inwestycyjne, oraz stan checkpointera LangGraph.
 
 Wchodzi: schemat tabel domenowych i ich relacje. Nie wchodzi: konkretna
 zawartość danych referencyjnych (kategorie, koszty stałe) — dostarczy je
-użytkownik później; to jest tylko struktura, którą wypełnią.
+użytkownik później; to jest tylko struktura, którą wypełnią. Zobacz niżej
+(„Otwarte kwestie”) gdzie i jak ta rzeczywista zawartość będzie
+przechowywana — repo jest publiczne, więc to nie może być zwykły commitowany
+plik.
 
 ## Wybór silnika bazy danych
 
@@ -76,7 +79,7 @@ erDiagram
     CATEGORIES {
         uuid id PK
         text name
-        text parent_category "opcjonalna hierarchia"
+        int score "0-100, im wyższe tym bardziej niezbędne do życia"
         text type "income | expense | transfer"
     }
 
@@ -86,8 +89,6 @@ erDiagram
         text name
         numeric expected_amount
         text frequency "monthly | quarterly | yearly"
-        int due_day "dzień miesiąca, jeśli monthly"
-        boolean active
     }
 
     REPORTS {
@@ -116,6 +117,9 @@ erDiagram
 
 - `TRANSACTIONS.category_id` jest nullable — pipeline musi działać nawet
   zanim kategoryzacja się zakończy (patrz [[06-spec-categorization]]).
+- `CATEGORIES.score` jest zarezerwowany pod przyszłą analizę (np. podział
+  wydatków na niezbędne/nieniezbędne) — żaden subgraph go jeszcze nie
+  konsumuje, to nie jest jeszcze twarde wymaganie funkcjonalne.
 - `STATEMENTS.checksum` + `drive_file_id` razem zapobiegają podwójnemu
   przetworzeniu tego samego wyciągu (patrz [[03-spec-statement-verification]]).
 - `INVESTMENT_RECOMMENDATIONS.allocation_proposal` jako `jsonb` — struktura
@@ -132,10 +136,33 @@ Używane przez niemal wszystkie pozostałe specyfikacje (02–11).
 
 ## Otwarte kwestie
 
-- Realna zawartość `CATEGORIES` i `FIXED_COSTS` — dostarczy użytkownik.
 - Czy raporty mają być zawsze rozdzielone per `account_type`, czy też ma
   istnieć zbiorczy raport prywatne+firmowe — do ustalenia przy
   [[09-spec-reporting]].
+
+## Przechowywanie realnej zawartości `CATEGORIES` i `FIXED_COSTS`
+
+**Zdecydowane** (repo jest publiczne na GitHubie, więc te dane — nazwy
+kategorii, kwoty kosztów stałych, kontrahenci — nie mogą trafić do gita jako
+zwykłe pliki):
+
+- Realne wartości żyją wyłącznie w plikach `data/local/categories.json` i
+  `data/local/fixed_costs.json`, objętych `.gitignore` (nigdy nie trafiają do
+  repozytorium).
+- Struktura JSON odzwierciedla pola z ER diagramu wyżej: `CATEGORIES` →
+  `name`, `score` (0-100, wymagane), `type`; `FIXED_COSTS` → `name`,
+  `category` (odwołanie po nazwie kategorii, nie po `uuid`),
+  `expected_amount`, `frequency`.
+- W repo commitowane są tylko szablony `data/local/categories.example.json` i
+  `data/local/fixed_costs.example.json` z fikcyjnymi wartościami — pokazują
+  kształt danych, nie realną zawartość.
+- Przy implementacji backendu powstanie skrypt seedujący, który wczytuje te
+  pliki JSON i zapisuje je do Postgresa (mapowanie `category` → `category_id`
+  po nazwie). Ten skrypt jeszcze nie istnieje — kod projektu jeszcze nie
+  powstał.
+- Sekrety (API keys, hasła) to osobna kategoria, patrz reguła 6 w
+  `CLAUDE.md` — ta sekcja dotyczy danych osobistych/finansowych, nie
+  credentiali.
 
 ## Kryteria akceptacji / testy
 

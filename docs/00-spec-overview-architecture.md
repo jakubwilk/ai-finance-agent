@@ -107,10 +107,15 @@ Orkiestracja i harmonogram (kiedy odpalać tygodniowy vs. miesięczny raport,
 | 15 | deployment-coolify | topologia Docker/Coolify |
 | 16 | testing-strategy | strategia testów |
 
+## Zdecydowane
+
+- Realna zawartość tabeli kategorii i kosztów stałych — repo jest publiczne,
+  więc te dane żyją wyłącznie w gitignored `data/local/*.json`, nie w
+  repozytorium; patrz
+  [[01-spec-data-model#przechowywanie-realnej-zawartości-categories-i-fixed_costs]].
+
 ## Otwarte kwestie (globalne, nie do zgadnięcia)
 
-- Realna zawartość tabeli kategorii i kosztów stałych — dostarczy
-  użytkownik.
 - Profil ryzyka i instrumenty inwestycyjne — patrz
   [[08-spec-investment-analysis]].
 - Nazwy modeli i endpoint Ollama na OVH — patrz

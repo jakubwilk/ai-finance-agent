@@ -11,8 +11,10 @@ przeglądu przez człowieka.
 
 Wchodzi: dopasowanie regułowe, fallback LLM, próg pewności, kolejka do
 przeglądu (human-in-the-loop). Nie wchodzi: definicja samych kategorii
-(dostarczy użytkownik) ani wyliczenia bilansu (patrz
-[[07-spec-cashflow-calculation]]).
+(realne dane dostarczy użytkownik przez `data/local/categories.json`,
+gitignored — patrz
+[[01-spec-data-model#przechowywanie-realnej-zawartości-categories-i-fixed_costs]])
+ani wyliczenia bilansu (patrz [[07-spec-cashflow-calculation]]).
 
 ## Wejście / Wyjście
 
@@ -52,9 +54,9 @@ przeglądu (human-in-the-loop). Nie wchodzi: definicja samych kategorii
 
 ## Otwarte kwestie
 
-- **Realna zawartość `CATEGORIES`** — dostarczy użytkownik; do tego czasu
-  ten subworkflow nie ma z czym pracować (blokujące dla end-to-end testu,
-  ale nie dla samej implementacji logiki).
+- Do czasu, aż użytkownik uzupełni `data/local/categories.json` (patrz
+  [[01-spec-data-model]]), ten subworkflow nie ma z czym pracować (blokujące
+  dla end-to-end testu, ale nie dla samej implementacji logiki).
 - Próg pewności do `needs_review` (np. 0.7?) — do ustalenia, prawdopodobnie
   empirycznie po pierwszych uruchomieniach.
 - Czy słownik reguł ma się automatycznie uczyć z potwierdzeń człowieka, czy
