@@ -34,8 +34,15 @@ ręczny trigger. Nie wchodzi: logika backendu (patrz
 
 - [[13-spec-backend-api]] — jedyne źródło danych dla UI.
 - [[06-spec-categorization]] — kontrakt danych dla Review Queue.
-- Skill `init-frontend` do scaffoldowania (Next.js, TypeScript, Tailwind,
-  Mantine) i skill `dataviz` przy projektowaniu wykresów/breakdownów w UI.
+- Skill `init-frontend` do scaffoldowania (Next.js, TypeScript, Tailwind) i
+  skill `dataviz` przy projektowaniu wykresów/breakdownów w UI.
+
+## Zdecydowane
+
+- Biblioteka komponentów: **shadcn/ui** (nie Mantine — patrz `CLAUDE.md`,
+  "Confirmed tech stack decisions"). Po `npx shadcn@latest init` motyw
+  projektu aplikuje się komendą `npx shadcn@latest apply --preset
+  byZfcT1E0`.
 
 ## Otwarte kwestie
 

@@ -26,8 +26,12 @@ There is no established build, lint, test, or run process, and no architecture t
 - **Backend / agent logic: Python.** Assume Python for all agent, tooling, and data-processing code unless told otherwise.
 - **UI: React.** If/when a user-facing interface is built for this agent, it will be React-based (not another frontend framework).
 - **Agent orchestration: LangGraph** (not plain LangChain, not Deep Agents). Decided in `docs/00-spec-overview-architecture.md` ("Wybór frameworka: LangGraph"): the process is a deterministic, branching pipeline with human-in-the-loop interrupts and persistent state across weekly runs — this fits `StateGraph`, not a single-tool-loop LangChain agent or Deep Agents' dynamic ad-hoc planning (steps here are known upfront). LangChain still shows up as a supporting library (e.g. structured output via `langchain-middleware`), just not as the orchestrator.
+- **UI components: shadcn/ui** (replaces Mantine — do not scaffold Mantine). Components are copied directly into the repo (not an npm dependency), built on Tailwind CSS + Radix/Base UI primitives. Setup flow:
+  1. `npx shadcn@latest init` — one-time, creates `components.json` (required before `apply` works).
+  2. `npx shadcn@latest add <component>` — add individual components as needed.
+  3. `npx shadcn@latest apply --preset byZfcT1E0` — applies the project's saved theme/preset (colors, CSS variables, fonts, icons); can be re-run any time after `init` to reapply/update the look.
 
-These are settled decisions — don't re-ask about language, UI framework, or agent orchestration framework. Everything else about the stack (data sources, deployment specifics) is still open.
+These are settled decisions — don't re-ask about language, UI framework, agent orchestration framework, or UI component library. Everything else about the stack (data sources, deployment specifics) is still open.
 
 ## Workflow visualization & execution UI: local only, no cloud accounts
 
@@ -93,7 +97,7 @@ Invoke these via the Skill tool instead of doing the equivalent work by hand.
 
 **UI and general tooling:**
 
-- **init-frontend** — scaffolds the React (Next.js) frontend when the UI is built: TypeScript, Tailwind, Mantine, Vitest.
+- **init-frontend** — scaffolds the React (Next.js) frontend when the UI is built: TypeScript, Tailwind, Vitest. Its default Mantine setup is **not** used in this project — follow up with shadcn/ui setup (see "Confirmed tech stack decisions" above) instead of adding Mantine.
 - **claude-api** — reference for the Claude/Anthropic API (models, pricing, tool use, streaming, caching). Load this BEFORE writing any LLM integration code, agent loop, or tool-calling logic that calls Claude specifically.
 - **dataviz** — design guidance for charts/graphs/dashboards. Load before building any financial chart, KPI tile, or visualization in the React UI.
 - **run** — launches the app to verify a change actually works. Use before reporting a run/build/UI change as done.
@@ -113,5 +117,24 @@ Before guessing at LangChain or Vite APIs/behavior, fetch these instead of relyi
 - **LangChain / LangGraph / LangSmith**: https://docs.langchain.com/llms.txt
 - **Vite** (the build tool/dev server — framework-agnostic, not React-specific): https://vite.dev/llms.txt (index) / https://vite.dev/llms-full.txt (full docs)
 - **React** (the UI library itself): https://react.dev/llms.txt
+- **shadcn/ui** (UI component library): https://ui.shadcn.com/llms.txt
 
 There is no official `llms.txt` for Python itself (the language) — only for individual libraries/frameworks. If a new framework enters the stack, check whether it publishes an `llms.txt` before assuming its API from memory.
+
+## React & Python (AI/LLM) best practices — 2026
+
+Distilled from research (see sources below); apply these by default, per rule 5.
+
+**React:**
+- Follow the canonical [Rules of React](https://react.dev/reference/rules): components/hooks must be pure and idempotent (same inputs → same output), no side effects during render, never mutate props/state or values already used in JSX, hooks called only at the top level of React functions (never in loops/conditions/regular functions). Enforce with Strict Mode + `eslint-plugin-react-hooks`.
+- Rely on the **React Compiler** for memoization instead of manual `useMemo`/`useCallback`/`React.memo` — it only auto-optimizes correctly if the Rules of React above are actually followed.
+- Prefer **Server Components** for data-fetching/heavy logic in larger apps, with Suspense for async boundaries — but this repo's UI is a local-only SPA behind a local FastAPI backend (see "Workflow visualization" above), so this applies only if/when the frontend architecture actually uses a Server Components-capable framework.
+- State management: Context API for simple/localized state; reach for a dedicated store only for large-scale, frequently-updated state — don't default to global state.
+
+**Python (AI/LLM):**
+- Structured output via Pydantic models for LLM responses and tool inputs/outputs — never parse raw strings (already the approach via `langchain-middleware`).
+- Production LLM checklist: OpenTelemetry-native instrumentation, a versioned prompt registry (not hardcoded prompt strings), an eval suite running in CI, guardrails, and structured (JSON) observability logs.
+- Treat every prompt/model change like a code change that can regress — safe rollout (e.g. per-user A/B with automatic rollback) rather than a blind swap.
+- Evaluation as a first-class artifact: golden dataset + automated scoring (LLM-as-a-judge) + regression testing on every prompt/model change — this is what the `eval-engineering` skill is for in this repo.
+
+Sources: [Rules of React](https://react.dev/reference/rules), [React best practices 2026](https://dev.to/nozibul_islam_113b1d5334f/react-best-practices-2026-2ng2), [LLM Deployment Best Practices 2026](https://futureagi.com/blog/llm-deployment-best-practices-2026/), [Python AI/ML 2026 Guide](https://calmops.com/programming/python-ai-ml-2026/)

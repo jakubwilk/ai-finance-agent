@@ -19,6 +19,7 @@ technologii: [`docs/00-spec-overview-architecture.md`](docs/00-spec-overview-arc
 | Backend / logika agenta | Python |
 | Orkiestracja | LangGraph |
 | UI | React |
+| Komponenty UI | shadcn/ui (Tailwind + Radix/Base UI) |
 | API pośredniczące | FastAPI |
 | Baza danych | PostgreSQL — lokalnie i w każdym środowisku (dev/prod) |
 | LLM | Ollama hostowane na OVH (self-hosted) |
@@ -58,9 +59,6 @@ biblioteki) są opisane w [`CLAUDE.md`](CLAUDE.md).
 
 - **Autoryzacja serwerowa do Google Drive** (service account vs. OAuth
   refresh token) — [`02-spec-google-drive-ingestion`](docs/02-spec-google-drive-ingestion.md).
-- **Realna zawartość tabel `CATEGORIES` i `FIXED_COSTS`** — dostarczy
-  użytkownik — [`05-spec-fixed-costs`](docs/05-spec-fixed-costs.md),
-  [`06-spec-categorization`](docs/06-spec-categorization.md).
 - **Profil ryzyka i dostępne instrumenty inwestycyjne** —
   [`08-spec-investment-analysis`](docs/08-spec-investment-analysis.md).
 - **Endpoint i modele Ollama na OVH** —
