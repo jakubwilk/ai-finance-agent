@@ -169,10 +169,26 @@ _Checklisty: `[ ]` = do zrobienia, `[x]` = zrobione — odznaczać w miarę post
    nie podłączony jeszcze do realnego runu — to naturalnie przyjdzie z
    Run Detail (krok 4), gdzie `next` z historii faktycznie to mówi.
 
-3. [ ] **Runs / History** — lista `GET /runs` z odznakami statusu.
+3. [x] **Runs / History** — lista `GET /runs` z odznakami statusu.
+   Zrobione: `frontend/src/modules/runs/` (`RunStatusBadge` — pierwsze
+   użycie shadcn `Badge`/`Table`; `RunsPage`, ten sam wzorzec
+   loading/error/success co `GraphPage`), route `/runs`, posortowane po
+   `createdAt` malejąco, link „Details" → `/runs/[threadId]` (404 do
+   czasu kroku 4 — oczekiwane). Dodałem stały pasek nawigacji
+   (`common/components/AppNav.tsx`, Graph | Runs) w `app/layout.tsx`,
+   żeby `/runs` (i `/graph`) było osiągalne bez znajomości URL-a.
 
-4. [ ] **Run Detail (time travel)** — `GET /runs/{thread_id}/history` jako oś
-   czasu kroków z podglądem stanu na dowolnym checkpointcie.
+4. [x] **Run Detail (time travel)** — `GET /runs/{thread_id}/history` jako oś
+   czasu kroków z podglądem stanu na dowolnym checkpointcie. Zrobione:
+   route `/runs/[threadId]` (Next 16: `params` to `Promise`, `await`
+   w cienkim server page, string dalej do `RunDetailPage`);
+   `RunDetailPage` — klikalna oś czasu (jawnie posortowana po `step`,
+   bo `get_state_history` realnie zwraca najnowszy checkpoint pierwszy),
+   domyślnie wybrany najnowszy, panel stanu (JSON) + `next` węzeł(y).
+   `GraphView`'s `activeNodeId` → `activeNodeIds: string[]` (LangGraph
+   `next` to tablica, `Send`/równoległe gałęzie) i przeniesiony razem z
+   `getLayoutedElements` z `modules/graph/` do `modules/common/` — teraz
+   współdzielony przez `graph` i `runs`, zgodnie z regułą granic modułów.
 
 5. [ ] **Review Queue** — lista transakcji `needs_review` (kontrakt danych z
    [`06-spec-categorization`](docs/06-spec-categorization.md) i
@@ -180,7 +196,13 @@ _Checklisty: `[ ]` = do zrobienia, `[x]` = zrobione — odznaczać w miarę post
    potwierdzenia/korekty wywołująca `POST /runs/{thread_id}/resume`.
    *Zależy od Planu A kroku 6 (Categorization) — realny kształt danych.*
 
-6. [ ] **Manual Trigger** — przycisk „uruchom teraz” wywołujący `POST /runs`.
+6. [x] **Manual Trigger** — przycisk „uruchom teraz” wywołujący `POST /runs`.
+   Zrobione: `modules/runs/components/TriggerRunButton.tsx` (pierwsze
+   użycie shadcn `Button`) na `RunsPage`, obok nagłówka. `mockClient`
+   (`common/api/mockClient.ts`) stał się stanowy dla runów (`listRuns`
+   czyta z tego, co dopisał `triggerRun`) — wierniej odzwierciedla
+   realny backend (`POST` → `GET` pokazuje nowy wpis) niż statyczny
+   fixture; `resetMockRuns()` (test-only) trzyma testy deterministycznymi.
 
 7. [ ] **Wykresy / breakdowny** — zastosowanie skilla `dataviz` do breakdownów
    kategorii i trendów w Graph View / Run Detail.
