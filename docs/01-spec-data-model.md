@@ -34,6 +34,7 @@ erDiagram
     STATEMENTS ||--o{ TRANSACTIONS : "zawiera"
     CATEGORIES ||--o{ TRANSACTIONS : "kategoryzuje"
     CATEGORIES ||--o{ FIXED_COSTS : "kategoryzuje"
+    CATEGORIES ||--o{ CATEGORY_RULES : "przypisana przez regułę"
     FIXED_COSTS ||--o{ TRANSACTIONS : "dopasowuje (opcjonalnie)"
     REPORTS ||--o{ INVESTMENT_RECOMMENDATIONS : "zawiera"
 
@@ -91,6 +92,14 @@ erDiagram
         text frequency "monthly | quarterly | yearly"
     }
 
+    CATEGORY_RULES {
+        uuid id PK
+        text match_key "unikalny: counterparty jeśli jest, inaczej description, lowercased/stripped"
+        uuid category_id FK
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
     REPORTS {
         uuid id PK
         text report_type "weekly | monthly"
@@ -121,6 +130,13 @@ erDiagram
   (jest tylko jedno konto, więc nic nie trzeba rozróżniać).
 - `TRANSACTIONS.category_id` jest nullable — pipeline musi działać nawet
   zanim kategoryzacja się zakończy (patrz [[06-spec-categorization]]).
+- `CATEGORY_RULES.match_key` samo się uczy: `persist_category`
+  (kategoryzacja) upsertuje wiersz za każdym razem, gdy `human_review`
+  potwierdzi/skoryguje kategorię — kolejna transakcja z tym samym
+  kontrahentem/opisem trafi regułowo, bez ponownego wywołania LLM ani
+  przeglądu. Klucz to `counterparty`, jeśli transakcja go ma (stabilniejszy
+  dla przelewów niż zmienny `Tytuł`), inaczej `description` (jedyny sygnał
+  przy płatnościach kartą).
 - `CATEGORIES.score` jest zarezerwowany pod przyszłą analizę (np. podział
   wydatków na niezbędne/nieniezbędne) — żaden subgraph go jeszcze nie
   konsumuje, to nie jest jeszcze twarde wymaganie funkcjonalne.
