@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str | None = None
+    test_database_url: str | None = None
 
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: str | None = None
