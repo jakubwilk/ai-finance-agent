@@ -52,9 +52,9 @@ flowchart LR
 |---|---|
 | `DATABASE_URL` | connection string PostgreSQL |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | wysyłka raportów, patrz [[10-spec-email-delivery]] |
-| `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON` (lub odpowiednik) | autoryzacja do Drive, patrz [[02-spec-google-drive-ingestion]] |
-| `OLLAMA_BASE_URL` | endpoint OVH, patrz [[12-spec-llm-integration-ollama]] |
-| `REPORT_RECIPIENT_EMAIL` | adresat raportów |
+| `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN` | autoryzacja OAuth do Drive kontem osobistym, patrz [[02-spec-google-drive-ingestion]] |
+| `OLLAMA_BASE_URL`, `OLLAMA_MODEL_CLASSIFICATION`, `OLLAMA_MODEL_INVESTMENT`, `OLLAMA_MODEL_REPORTING`, `OLLAMA_API_KEY` | endpoint i modele OVH, patrz [[12-spec-llm-integration-ollama]] |
+| `REPORT_RECIPIENT_EMAIL_PRIVATE`, `REPORT_RECIPIENT_EMAIL_COMPANY` | adresaci raportów per konto, patrz [[10-spec-email-delivery]] |
 
 Zgodnie z `CLAUDE.md`: wartości wyłącznie w `.env` / sekretach Coolify,
 nigdy w kodzie, commitach czy tej dokumentacji.

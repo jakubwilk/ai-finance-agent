@@ -47,20 +47,33 @@ nie polega na parsowaniu nazwy pliku, tylko na treści (patrz
    folderu źródłowego, `status = pending`).
 5. `update_sync_cursor` — zapis nowego `last_synced_at`.
 
-## Autoryzacja do Drive (otwarta kwestia — krytyczna)
+## Autoryzacja do Drive (zdecydowane)
 
+**Ustalone: OAuth kontem osobistym użytkownika** (nie Service Account).
 Interaktywny OAuth używany przez connector w tej sesji czatu (`Google
 Drive` MCP) jest przypięty do konta użytkownika i sesji rozmowy — **nie
-nadaje się** do procesu bezobsługowego działającego cyklicznie na serwerze.
-Dla wdrożenia produkcyjnego potrzebne jest jedno z:
+nadaje się** bezpośrednio do procesu bezobsługowego. Dla wdrożenia
+produkcyjnego: jednorazowy, interaktywny consent OAuth (installed/web app w
+Google Cloud Console) zwraca **refresh token długożyjący**, który backend
+używa samodzielnie do odświeżania access tokenów bez ponownej interakcji
+użytkownika.
 
-- **Service Account** z dostępem do współdzielonego folderu (Shared Drive
-  lub folder udostępniony kontu serwisowemu) — rekomendowane dla procesu
-  bezobsługowego, brak wygasających tokenów użytkownika.
-- OAuth z refresh tokenem długożyjącym, przechowywanym jako sekret.
+Zmienne środowiskowe (wartości wyłącznie w `.env`, nigdy w kodzie/commitach/
+czacie, zgodnie z regułą 6 z `CLAUDE.md`):
 
-**Do ustalenia z użytkownikiem przed implementacją** — nie zakładam żadnej
-z opcji z góry.
+| Zmienna | Cel |
+|---|---|
+| `GOOGLE_OAUTH_CLIENT_ID` | Client ID z OAuth 2.0 Client (Google Cloud Console) |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Client Secret odpowiadający powyższemu |
+| `GOOGLE_OAUTH_REFRESH_TOKEN` | Refresh token uzyskany z jednorazowego consentu |
+
+**Ważna pułapka operacyjna:** jeśli ekran zgody OAuth (OAuth consent
+screen) ma status publikacji „Testing”, Google unieważnia refresh token po
+7 dniach — co po tygodniu wyłączyłoby bezobsługowy proces. Trzeba ustawić
+status publikacji na **„In production”** (dopuszczalne bez przechodzenia
+weryfikacji Google dla pojedynczego, osobistego użytkownika — pojawi się
+tylko ostrzeżenie „unverified app” przy jednorazowym consentcie, które
+użytkownik akceptuje sam sobie).
 
 ## Zależności
 
@@ -70,8 +83,6 @@ z opcji z góry.
 
 ## Otwarte kwestie
 
-- Metoda autoryzacji serwerowej do Drive (service account vs. OAuth
-  refresh token).
 - Miejsce przechowywania pobranych plików PDF (filesystem kontenera z
   wolumenem trwałym vs. object storage).
 - Częstotliwość sprawdzania Drive: czy poll co tydzień zgodnie z

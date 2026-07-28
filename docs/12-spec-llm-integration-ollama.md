@@ -36,6 +36,24 @@ Różne zadania mogą używać różnych modeli (np. mniejszy/szybszy model do
 klasyfikacji masowej, większy do reasoningu inwestycyjnego) — konfigurowalne
 per zadanie, nie jeden model na cały system.
 
+## Zdecydowane: format zmiennych środowiskowych
+
+Konkretne wartości (URL endpointu, nazwy modeli) uzupełni użytkownik
+bezpośrednio w `.env` — nie są przekazywane w czacie/kodzie/commitach,
+zgodnie z regułą 6 z `CLAUDE.md`. Format:
+
+| Zmienna | Cel |
+|---|---|
+| `OLLAMA_BASE_URL` | adres endpointu Ollama na OVH |
+| `OLLAMA_MODEL_CLASSIFICATION` | model użyty do klasyfikacji kategorii ([[06-spec-categorization]]) |
+| `OLLAMA_MODEL_INVESTMENT` | model użyty do reasoningu inwestycyjnego ([[08-spec-investment-analysis]]) |
+| `OLLAMA_MODEL_REPORTING` | model użyty do treści narracyjnej raportu ([[09-spec-reporting]]) |
+| `OLLAMA_API_KEY` | opcjonalna — puste, jeśli endpoint nie wymaga uwierzytelnienia |
+
+Trzy osobne zmienne modelu pokrywają też pytanie „czy jeden model
+wystarczy do wszystkiego": jeśli tak, użytkownik wpisze tę samą nazwę we
+wszystkie trzy.
+
 ## Niezawodność (self-hosted, brak SLA)
 
 - Timeout i retry z backoff na każde wywołanie (self-hosted Ollama może być
@@ -58,14 +76,10 @@ per zadanie, nie jeden model na cały system.
 
 ## Otwarte kwestie (blokujące implementację — nie zgaduję)
 
-- **Adres endpointu Ollama na OVH** (URL, port) i czy wymaga
-  uwierzytelnienia (API key/token, sieć prywatna).
-- **Nazwy/warianty modeli faktycznie dostępnych** na tej instancji (np.
-  `llama3.1`, `qwen2.5`, `mistral` — zależnie od tego, co zostało
-  wdrożone) i ich limity kontekstu.
-- Czy jeden model obsłuży wszystkie trzy zadania z tabeli wyżej, czy trzeba
-  różnych modeli per zadanie (np. lżejszy do klasyfikacji, mocniejszy do
-  reasoningu).
+- **Konkretne wartości** zmiennych środowiskowych powyżej (URL endpointu,
+  nazwy/warianty modeli faktycznie dostępnych na instancji OVH, ich limity
+  kontekstu) — mechanizm ustalony, wartości do uzupełnienia przez
+  użytkownika w `.env`.
 - Oczekiwana przepustowość (ile transakcji tygodniowo realistycznie trafi
   do klasyfikacji LLM) — wpływa na to, czy potrzebne jest batchowanie
   wywołań.

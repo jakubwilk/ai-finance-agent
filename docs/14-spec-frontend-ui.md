@@ -15,10 +15,9 @@ ręczny trigger. Nie wchodzi: logika backendu (patrz
 
 ## Widoki (projekt wstępny)
 
-1. **Graph View** — renderowanie `GET /graph/structure` (Mermaid.js lub
-   React Flow — wybór biblioteki przy implementacji przez
-   `init-frontend`), z podświetleniem aktualnie wykonywanego węzła dla
-   trwających runów.
+1. **Graph View** — renderowanie struktury grafu przy użyciu **React
+   Flow** (patrz „Zdecydowane” niżej), z podświetleniem aktualnie
+   wykonywanego węzła dla trwających runów.
 2. **Runs / History** — lista `thread_id` z datą, statusem
    (`running`/`completed`/`failed`/`waiting_for_review`), link do
    szczegółów.
@@ -43,12 +42,18 @@ ręczny trigger. Nie wchodzi: logika backendu (patrz
   "Confirmed tech stack decisions"). Po `npx shadcn@latest init` motyw
   projektu aplikuje się komendą `npx shadcn@latest apply --preset
   byZfcT1E0`.
+- Biblioteka renderowania grafu: **React Flow** (pakiet `@xyflow/react` —
+  nazwa `react-flow-renderer` jest przestarzała/zastąpiona). Wybrane nad
+  Mermaid.js, ponieważ węzły to prawdziwe komponenty React — naturalne
+  podświetlanie aktualnie wykonywanego węzła na żywo i natywna integracja
+  z Tailwind/shadcn, kosztem dodatkowej pracy: `get_graph()` z LangGraph
+  nie dostarcza współrzędnych x/y węzłów, więc potrzebna jest osobna
+  biblioteka auto-layoutu (np. `dagre` lub `elkjs` — konkretny wybór do
+  zweryfikowania względem aktualnej dokumentacji przy implementacji, nie
+  z pamięci).
 
 ## Otwarte kwestie
 
-- Biblioteka do renderowania grafu: Mermaid.js (prostsze, statyczne) vs.
-  React Flow (bardziej interaktywne, wymaga więcej pracy) — do wyboru przy
-  implementacji.
 - Czy UI wymaga jakiejkolwiek formy logowania lokalnego (np. prosty PIN),
   biorąc pod uwagę że pokazuje dane finansowe — powiązane z otwartą
   kwestią bezpieczeństwa w [[13-spec-backend-api]].

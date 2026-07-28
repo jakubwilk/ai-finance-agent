@@ -28,6 +28,26 @@ generowanie treści (patrz [[09-spec-reporting]]).
   `.env`, nigdy w kodzie/dokumentacji/commitach**, zgodnie z zasadą
   „Never handle secrets in plaintext” z `CLAUDE.md`.
 
+## Zdecydowane: format zmiennych środowiskowych
+
+Konkretne wartości uzupełni użytkownik bezpośrednio w `.env` — nigdy w
+czacie/kodzie/commitach, zgodnie z regułą 6 z `CLAUDE.md`. Format
+niezależny od konkretnego dostawcy SMTP (Gmail, SES, Mailgun, Postmark,
+własny serwer — działa identycznie dla każdego z nich):
+
+| Zmienna | Cel |
+|---|---|
+| `SMTP_HOST` | host serwera SMTP |
+| `SMTP_PORT` | port serwera SMTP |
+| `SMTP_USER` | użytkownik/login SMTP |
+| `SMTP_PASSWORD` | hasło / app-password SMTP |
+| `REPORT_RECIPIENT_EMAIL_PRIVATE` | odbiorca raportów konta prywatnego |
+| `REPORT_RECIPIENT_EMAIL_COMPANY` | odbiorca raportów konta firmowego |
+
+Dwie osobne zmienne odbiorcy rozstrzygają też pytanie „jeden mail czy
+różni odbiorcy": wpisanie tego samego adresu w obie zmienne = jeden
+odbiorca, różnych = dwóch.
+
 ## Kroki / węzły grafu (subgraph `email_delivery`)
 
 1. `render_final_payload` — MIME multipart (HTML + ewentualny plain-text
@@ -49,11 +69,6 @@ generowanie treści (patrz [[09-spec-reporting]]).
 
 ## Otwarte kwestie
 
-- Adres(y) odbiorcy raportów — jeden mail czy różni odbiorcy dla
-  prywatnego/firmowego konta.
-- Dostawca SMTP (Gmail SMTP z app-password, inny dostawca transakcyjny typu
-  SES/Mailgun/Postmark, czy własny serwer pocztowy) — wpływa na limity
-  wysyłki i reputację nadawcy; do ustalenia.
 - Polityka retry przy nieudanej wysyłce (liczba prób, odstępy).
 
 ## Kryteria akceptacji / testy

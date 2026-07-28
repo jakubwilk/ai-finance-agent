@@ -113,15 +113,15 @@ Orkiestracja i harmonogram (kiedy odpalać tygodniowy vs. miesięczny raport,
   więc te dane żyją wyłącznie w gitignored `data/local/*.json`, nie w
   repozytorium; patrz
   [[01-spec-data-model#przechowywanie-realnej-zawartości-categories-i-fixed_costs]].
+- Autoryzacja serwerowa do Google Drive: OAuth kontem osobistym użytkownika
+  (nie service account) — patrz [[02-spec-google-drive-ingestion]].
 
 ## Otwarte kwestie (globalne, nie do zgadnięcia)
 
 - Profil ryzyka i instrumenty inwestycyjne — patrz
   [[08-spec-investment-analysis]].
-- Nazwy modeli i endpoint Ollama na OVH — patrz
-  [[12-spec-llm-integration-ollama]].
-- Autoryzacja serwerowa do Google Drive (service account) — patrz
-  [[02-spec-google-drive-ingestion]].
+- Konkretne wartości endpointu i modeli Ollama na OVH (format zmiennych
+  ustalony) — patrz [[12-spec-llm-integration-ollama]].
 
 ## Kryteria akceptacji
 
