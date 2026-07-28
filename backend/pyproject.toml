@@ -1,0 +1,26 @@
+[project]
+name = "finance-agent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Jakub Wilk", email = "jakub.wilk@jakubwilk.pl" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "langchain>=1.0,<2.0",
+    "langchain-core>=1.0,<2.0",
+    "langgraph>=1.0,<2.0",
+    "langsmith>=0.3.0",
+    "pydantic-settings>=2.14.2",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.32,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.0",
+]
