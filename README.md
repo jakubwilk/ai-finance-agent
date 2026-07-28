@@ -57,13 +57,13 @@ biblioteki) są opisane w [`CLAUDE.md`](CLAUDE.md).
 
 ## Otwarte kwestie blokujące start implementacji
 
-- **Autoryzacja serwerowa do Google Drive** (service account vs. OAuth
-  refresh token) — [`02-spec-google-drive-ingestion`](docs/02-spec-google-drive-ingestion.md).
 - **Profil ryzyka i dostępne instrumenty inwestycyjne** —
   [`08-spec-investment-analysis`](docs/08-spec-investment-analysis.md).
-- **Endpoint i modele Ollama na OVH** —
+- **Konkretne wartości endpointu/modeli Ollama na OVH** (format zmiennych
+  środowiskowych już ustalony) —
   [`12-spec-llm-integration-ollama`](docs/12-spec-llm-integration-ollama.md).
-- **Odbiorca(y) raportów i dostawca SMTP** —
+- **Konkretne wartości SMTP i adresów odbiorców raportów** (format
+  zmiennych środowiskowych już ustalony) —
   [`10-spec-email-delivery`](docs/10-spec-email-delivery.md).
 
 Pełna lista otwartych kwestii per obszar znajduje się w sekcji „Otwarte
