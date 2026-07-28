@@ -22,6 +22,7 @@ from finance_agent.graph.master import (
 _PLACEHOLDER_INGESTION_NODE = _make_placeholder(INGESTION)
 _PLACEHOLDER_VERIFICATION_PRE_CHECK_NODE = _make_placeholder(VERIFICATION_PRE_CHECK)
 _PLACEHOLDER_EXTRACTION_NODE = _make_placeholder(EXTRACTION)
+_PLACEHOLDER_VERIFICATION_POST_CHECK_NODE = _make_placeholder(VERIFICATION_POST_CHECK)
 
 ALL_NODES = [
     INGESTION,
@@ -57,6 +58,7 @@ def test_happy_path_reaches_end_without_review():
         ingestion_node=_PLACEHOLDER_INGESTION_NODE,
         verification_pre_check_node=_PLACEHOLDER_VERIFICATION_PRE_CHECK_NODE,
         extraction_node=_PLACEHOLDER_EXTRACTION_NODE,
+        verification_post_check_node=_PLACEHOLDER_VERIFICATION_POST_CHECK_NODE,
     )
 
     result = graph.invoke(
@@ -82,6 +84,7 @@ def test_happy_path_with_needs_review_routes_through_human_review():
         ingestion_node=_PLACEHOLDER_INGESTION_NODE,
         verification_pre_check_node=_PLACEHOLDER_VERIFICATION_PRE_CHECK_NODE,
         extraction_node=_PLACEHOLDER_EXTRACTION_NODE,
+        verification_post_check_node=_PLACEHOLDER_VERIFICATION_POST_CHECK_NODE,
     )
 
     result = graph.invoke(
@@ -104,6 +107,7 @@ def test_verification_pre_check_failure_routes_to_alert_and_ends():
         ingestion_node=_PLACEHOLDER_INGESTION_NODE,
         verification_pre_check_node=_PLACEHOLDER_VERIFICATION_PRE_CHECK_NODE,
         extraction_node=_PLACEHOLDER_EXTRACTION_NODE,
+        verification_post_check_node=_PLACEHOLDER_VERIFICATION_POST_CHECK_NODE,
     )
 
     result = graph.invoke(

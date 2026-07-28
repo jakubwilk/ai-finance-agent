@@ -20,11 +20,11 @@ class Settings(BaseSettings):
     google_oauth_refresh_token: str | None = None
     google_drive_folder_id: str | None = None
 
-    ollama_base_url: str | None = None
-    ollama_model_classification: str | None = None
-    ollama_model_investment: str | None = None
-    ollama_model_reporting: str | None = None
-    ollama_api_key: str | None = None
+    ovh_ai_endpoints_base_url: str | None = None
+    ovh_ai_endpoints_api_key: str | None = None
+    ovh_model_classification: str | None = None
+    ovh_model_investment: str | None = None
+    ovh_model_reporting: str | None = None
 
     smtp_host: str | None = None
     smtp_port: int | None = None

@@ -11,6 +11,9 @@ from finance_agent.subgraphs.extraction.graph import build_extraction_graph
 from finance_agent.subgraphs.ingestion.drive_client import build_drive_client
 from finance_agent.subgraphs.ingestion.graph import build_ingestion_graph
 from finance_agent.subgraphs.verification.graph import build_verification_graph
+from finance_agent.subgraphs.verification.post_check_graph import (
+    build_post_check_graph,
+)
 
 INGESTION = "ingestion"
 VERIFICATION_PRE_CHECK = "verification_pre_check"
@@ -108,6 +111,27 @@ async def _extraction_node(_state: MasterGraphState) -> dict:
     return {"visited": [EXTRACTION]}
 
 
+async def _verification_post_check_node(_state: MasterGraphState) -> dict:
+    """Real verification post-check subgraph, wired in place of the
+    placeholder. No Drive client needed — pure DB arithmetic. Reuses the
+    `verification_ok` key that `_route_after_verification_post_check`
+    already reads.
+    """
+    async with async_session_factory() as session:
+        try:
+            post_check_graph = build_post_check_graph(session=session)
+            result = await post_check_graph.ainvoke({"results": [], "all_ok": True})
+        except Exception:
+            await session.rollback()
+            raise
+        await session.commit()
+
+    return {
+        "visited": [VERIFICATION_POST_CHECK],
+        "verification_ok": result["all_ok"],
+    }
+
+
 def _route_after_verification_pre_check(
     state: MasterGraphState,
 ) -> Literal["extraction", "alert_immediate"]:
@@ -133,6 +157,9 @@ def build_master_graph(
         [MasterGraphState], Awaitable[dict]
     ] = _verification_pre_check_node,
     extraction_node: Callable[[MasterGraphState], Awaitable[dict]] = _extraction_node,
+    verification_post_check_node: Callable[
+        [MasterGraphState], Awaitable[dict]
+    ] = _verification_post_check_node,
 ) -> CompiledStateGraph:
     """Build the master orchestration graph per docs/11-spec-orchestration-scheduling.md.
 
@@ -151,7 +178,6 @@ def build_master_graph(
     builder = StateGraph(MasterGraphState)
 
     for node_name in (
-        VERIFICATION_POST_CHECK,
         CATEGORIZATION,
         HUMAN_REVIEW,
         FIXED_COSTS_RECONCILIATION,
@@ -165,6 +191,7 @@ def build_master_graph(
     builder.add_node(INGESTION, ingestion_node)
     builder.add_node(VERIFICATION_PRE_CHECK, verification_pre_check_node)
     builder.add_node(EXTRACTION, extraction_node)
+    builder.add_node(VERIFICATION_POST_CHECK, verification_post_check_node)
 
     builder.add_edge(START, INGESTION)
     builder.add_edge(INGESTION, VERIFICATION_PRE_CHECK)
