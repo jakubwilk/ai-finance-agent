@@ -62,9 +62,13 @@ samego parsowania pdfplumber tych samych pobranych bajtów):
    tabeli transakcji, patrz korekta wyżej), więc ten krok jest teraz
    sprawdzeniem spójności własnego parsowania, nie porównaniem z
    niezależnie wydrukowaną liczbą: `opening_balance + Σ(transactions.amount)
-   == closing_balance` (z tolerancją zaokrągleń, np. 0.01).
-5. `mark_result` (post-check) — aktualizacja `status` → `verified`/
-   `processed` albo `failed` z powodem `balance_mismatch`.
+   == closing_balance` (z tolerancją zaokrągleń **0.01 PLN, zdecydowane** —
+   zastosowana wprost proponowana wcześniej wartość domyślna). Jeśli
+   ekstrakcja nie wyprodukowała żadnej transakcji (`opening_balance`/
+   `closing_balance` wciąż `NULL`) → `failed` z powodem
+   `no_transactions_extracted`, zamiast cicho pomijać ten wyciąg.
+5. `mark_result` (post-check) — aktualizacja `status` → `processed` albo
+   `failed` z powodem `balance_mismatch`/`no_transactions_extracted`.
 
 ## Obsługa błędu
 
@@ -86,8 +90,6 @@ dopiero w raporcie tygodniowym.
   zawsze będzie to natywny PDF tekstowy eksportowany z bankowości
   elektronicznej — wpływa na to, czy OCR (np. `pytesseract`) w ogóle trzeba
   budować, czy to zbędna złożoność na start.
-- Tolerancja zaokrągleń przy porównaniu sald (grosze) — do ustalenia,
-  proponowana wartość domyślna 0.01 PLN.
 - Kanał natychmiastowego alertu o błędzie (mail od razu vs. inny kanał) —
   patrz [[10-spec-email-delivery]].
 
@@ -102,3 +104,7 @@ dopiero w raporcie tygodniowym.
   unreadable_pdf`.
 - Fixture bez tabeli „Zastosowane kryteria wyboru” / niesparsowalnych dat →
   `failure_reason = unparseable_period`.
+- Fixture z rozbieżnością sald dokładnie na granicy tolerancji (0.01 PLN) →
+  nadal `verified`/`processed`, nie `failed`.
+- Fixture `verified` bez żadnej wyekstrahowanej transakcji → `failed`,
+  `failure_reason = no_transactions_extracted`.

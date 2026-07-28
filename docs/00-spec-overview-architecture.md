@@ -78,7 +78,7 @@ Orkiestracja i harmonogram (kiedy odpalać tygodniowy vs. miesięczny raport,
 | Orkiestracja | LangGraph | patrz wyżej |
 | UI | React | ustalone w `CLAUDE.md` |
 | API pośredniczące | FastAPI | patrz [[13-spec-backend-api]] |
-| LLM | Ollama hostowane na OVH (self-hosted) | patrz [[12-spec-llm-integration-ollama]] |
+| LLM | OVH AI Endpoints (serverless, OpenAI-compatible) | patrz [[12-spec-llm-integration-ollama]] |
 | Baza danych | PostgreSQL (lokalnie i w każdym środowisku deployu) | patrz [[01-spec-data-model]] |
 | Wysyłka maili | SMTP | patrz [[10-spec-email-delivery]] |
 | Format wyciągów | PDF | patrz [[04-spec-transaction-extraction]] |
@@ -100,7 +100,7 @@ Orkiestracja i harmonogram (kiedy odpalać tygodniowy vs. miesięczny raport,
 | 09 | reporting | treść raportu tygodniowego/miesięcznego |
 | 10 | email-delivery | wysyłka SMTP |
 | 11 | orchestration-scheduling | master graph + harmonogram |
-| 12 | llm-integration-ollama | integracja z Ollama/OVH |
+| 12 | llm-integration-ollama | integracja z OVH AI Endpoints |
 | 13 | backend-api | FastAPI dla UI |
 | 14 | frontend-ui | React UI |
 | 15 | deployment-coolify | topologia Docker/Coolify |
@@ -119,8 +119,6 @@ Orkiestracja i harmonogram (kiedy odpalać tygodniowy vs. miesięczny raport,
 
 - Profil ryzyka i instrumenty inwestycyjne — patrz
   [[08-spec-investment-analysis]].
-- Konkretne wartości endpointu i modeli Ollama na OVH (format zmiennych
-  ustalony) — patrz [[12-spec-llm-integration-ollama]].
 
 ## Kryteria akceptacji
 

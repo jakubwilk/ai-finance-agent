@@ -51,7 +51,7 @@ flowchart LR
 | `DATABASE_URL` | connection string PostgreSQL |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | wysyłka raportów, patrz [[10-spec-email-delivery]] |
 | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN`, `GOOGLE_DRIVE_FOLDER_ID` | autoryzacja OAuth do Drive kontem osobistym + folder z wyciągami, patrz [[02-spec-google-drive-ingestion]] |
-| `OLLAMA_BASE_URL`, `OLLAMA_MODEL_CLASSIFICATION`, `OLLAMA_MODEL_INVESTMENT`, `OLLAMA_MODEL_REPORTING`, `OLLAMA_API_KEY` | endpoint i modele OVH, patrz [[12-spec-llm-integration-ollama]] |
+| `OVH_AI_ENDPOINTS_BASE_URL`, `OVH_AI_ENDPOINTS_API_KEY`, `OVH_MODEL_CLASSIFICATION`, `OVH_MODEL_INVESTMENT`, `OVH_MODEL_REPORTING` | endpoint i modele OVH AI Endpoints, patrz [[12-spec-llm-integration-ollama]] |
 | `REPORT_RECIPIENT_EMAIL` | odbiorca raportów, patrz [[10-spec-email-delivery]] |
 
 Zgodnie z `CLAUDE.md`: wartości wyłącznie w `.env` / sekretach Coolify,
@@ -80,9 +80,6 @@ kodu każdego serwisu.
 - Strategia backupu bazy danych (dane finansowe — utrata = utrata historii
   transakcji) — do zaprojektowania (np. cykliczny `pg_dump` do
   osobnego storage).
-- Sieciowe połączenie do Ollama na OVH: publiczny endpoint z
-  uwierzytelnieniem vs. VPN/prywatna sieć — wpływa na `OLLAMA_BASE_URL` i
-  ewentualny dodatkowy sekret.
 
 ## Kryteria akceptacji / testy
 
