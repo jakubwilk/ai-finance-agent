@@ -30,7 +30,10 @@ const eslintConfig = defineConfig([
       ],
       'import/no-duplicates': 'error',
       'import/no-unused-modules': 'warn',
-      'no-unused-vars': 'warn',
+      // Base rule doesn't understand TS interface method signatures
+      // (flags unused param names in declarations); the TS-aware rule
+      // below replaces it.
+      'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': 'warn',
       'no-restricted-imports': [
         'error',

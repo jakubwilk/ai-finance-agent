@@ -28,6 +28,21 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## Environment variables
+
+The backend (FastAPI, Plan A step 13) doesn't exist yet, so the UI talks
+to an in-memory mock API client by default —
+[`src/modules/common/api/`](./src/modules/common/api/). No `.env` file
+is required; both variables fall back to sensible defaults in code.
+
+| Variable                      | Default                                | Purpose                                                          |
+| ----------------------------- | -------------------------------------- | ---------------------------------------------------------------- |
+| `NEXT_PUBLIC_USE_MOCK_API`    | `true` (anything other than `"false"`) | Use the fixture-backed mock client instead of real `fetch` calls |
+| `NEXT_PUBLIC_BACKEND_API_URL` | `http://localhost:8000`                | Base URL for the real backend, once it exists                    |
+
+Set `NEXT_PUBLIC_USE_MOCK_API=false` in `.env.local` once the backend is
+reachable — no code change needed.
+
 ## Available scripts
 
 | Script                  | Description             |
