@@ -236,10 +236,33 @@ _Checklisty: `[ ]` = do zrobienia, `[x]` = zrobione — odznaczać w miarę post
    Testy: `test_llm_client.py` — konstrukcja/wiring, bez realnego
    wywołania OVH API.
 
-6. [ ] **Categorization** — [`06-spec-categorization`](docs/06-spec-categorization.md):
+6. [x] **Categorization** — [`06-spec-categorization`](docs/06-spec-categorization.md):
    `rule_match` → `llm_classify` → `confidence_gate` → `interrupt()` do
    przeglądu człowieka → zapis. Pierwszy kamień milowy wymagający
-   `langgraph-human-in-the-loop`.
+   `langgraph-human-in-the-loop`. **Ważne — częściowe ukończenie, celowo:**
+   subgraph w pełni zaimplementowany i przetestowany
+   (`subgraphs/categorization/{state,nodes,graph}.py`, real `interrupt()`/
+   `Command(resume=...)`), ale **nie podpięty do `master.py`** — czytanie
+   skilli `langgraph-human-in-the-loop`/`langgraph-persistence` ujawniło,
+   że `interrupt()` wymaga checkpointera i `graph.invoke()` zwraca się od
+   razu po trafieniu na niego (nie blokuje) — wznowienie to osobne
+   wywołanie `Command(resume=...)`, dokładnie jak Plan B krok 5 (Review
+   Queue) już zakładał (`POST /runs/{thread_id}/resume` jako osobne
+   żądanie, potencjalnie dni później). Żeby to działało end-to-end przez
+   master graf, potrzebny jest checkpointer + schemat `thread_id` na
+   poziomie master grafu — to dopiero krok 12. Zdecydowane z użytkownikiem:
+   zbudować i przetestować subgraph teraz w pełni (własny
+   `InMemorySaver`/`checkpointer` przekazywany przez wywołującego), ale
+   podpięcie pod placeholder `CATEGORIZATION` odłożyć do kroku 12, zamiast
+   zgadywać jego projekt teraz. Nowa tabela `CATEGORY_RULES` (migracja
+   `79554ef36e38`) — słownik `rule_match`, auto-uczący się z potwierdzeń
+   `human_review` (zdecydowane, było robocze założenie w docs/06). Próg
+   pewności **0.85** (zdecydowane, bardziej konserwatywnie niż
+   proponowane 0.7). `method="function_calling"` dla structured output —
+   niezweryfikowane na żywym OVH, ma fallback (błąd → pewność 0.0 →
+   `needs_review`, nie crash batcha). Testy: `test_categorization_graph.py`
+   — prawdziwe przebiegi interrupt/resume przez `InMemorySaver`, bez
+   realnego wywołania OVH API.
 
 7. [ ] **Fixed costs reconciliation** — [`05-spec-fixed-costs`](docs/05-spec-fixed-costs.md):
    dopasowanie do okresu bieżącego wyciągu, flagowanie rozbieżności.
