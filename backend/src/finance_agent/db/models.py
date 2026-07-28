@@ -123,6 +123,7 @@ class Transaction(Base):
         Numeric(5, 4), nullable=True
     )
     review_status: Mapped[str] = mapped_column(Text, default="auto")
+    raw_details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
 class FixedCost(Base):
