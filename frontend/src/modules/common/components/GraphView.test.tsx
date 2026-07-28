@@ -32,12 +32,16 @@ describe('GraphView', () => {
     });
   });
 
-  it('highlights the active node', async () => {
-    render(<GraphView nodes={nodes} edges={edges} activeNodeId="a" />);
+  it('highlights the active nodes', async () => {
+    render(<GraphView nodes={nodes} edges={edges} activeNodeIds={['a', 'c']} />);
 
     await waitFor(() => {
-      const activeNode = screen.getByText('Node A').closest('.react-flow__node');
-      expect(activeNode?.className).toContain('ring-primary');
+      const activeA = screen.getByText('Node A').closest('.react-flow__node');
+      const activeC = screen.getByText('Node C').closest('.react-flow__node');
+      const inactiveB = screen.getByText('Node B').closest('.react-flow__node');
+      expect(activeA?.className).toContain('ring-primary');
+      expect(activeC?.className).toContain('ring-primary');
+      expect(inactiveB?.className).not.toContain('ring-primary');
     });
   });
 

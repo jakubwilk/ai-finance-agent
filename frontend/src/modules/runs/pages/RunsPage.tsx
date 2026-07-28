@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/table';
 import { apiClient, type RunSummary } from '@/modules/common/api';
 import { RunStatusBadge } from '@/modules/runs/components/RunStatusBadge';
+import { TriggerRunButton } from '@/modules/runs/components/TriggerRunButton';
 
 type LoadState =
   | { status: 'loading' }
@@ -21,6 +22,12 @@ type LoadState =
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString();
+}
+
+function sortByCreatedAtDesc(runs: RunSummary[]) {
+  return [...runs].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
 }
 
 export function RunsPage() {
@@ -32,12 +39,7 @@ export function RunsPage() {
     apiClient
       .listRuns()
       .then((runs) => {
-        if (!cancelled) {
-          const sorted = [...runs].sort(
-            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-          );
-          setState({ status: 'success', runs: sorted });
-        }
+        if (!cancelled) setState({ status: 'success', runs: sortByCreatedAtDesc(runs) });
       })
       .catch((error: unknown) => {
         if (!cancelled) {
@@ -53,9 +55,18 @@ export function RunsPage() {
     };
   }, []);
 
+  const handleTriggered = () => {
+    apiClient.listRuns().then((runs) => {
+      setState({ status: 'success', runs: sortByCreatedAtDesc(runs) });
+    });
+  };
+
   return (
     <div className="flex flex-1 flex-col p-4">
-      <h1 className="mb-4 text-lg font-semibold">Runs</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-lg font-semibold">Runs</h1>
+        <TriggerRunButton onTriggered={handleTriggered} />
+      </div>
       {state.status === 'loading' && (
         <p className="text-sm text-muted-foreground" role="status">
           Loading runs…

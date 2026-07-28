@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
-import { mockClient } from '@/modules/common/api/mockClient';
+import { mockClient, resetMockRuns } from '@/modules/common/api/mockClient';
 import type { RunStatus } from '@/modules/common/models/api';
 
 describe('mockClient', () => {
+  beforeEach(() => {
+    resetMockRuns();
+  });
+
   it('returns the master graph mermaid diagram', async () => {
     const result = await mockClient.getGraphStructure();
     expect(result.mermaid).toContain('flowchart TD');
@@ -26,6 +30,15 @@ describe('mockClient', () => {
     const run = await mockClient.triggerRun();
     expect(run.status).toBe('running');
     expect(run.threadId).toBeTruthy();
+  });
+
+  it('makes triggered runs show up in a subsequent listRuns call', async () => {
+    const before = await mockClient.listRuns();
+    const triggered = await mockClient.triggerRun();
+    const after = await mockClient.listRuns();
+
+    expect(after.length).toBe(before.length + 1);
+    expect(after.map((run) => run.threadId)).toContain(triggered.threadId);
   });
 
   it('returns run state', async () => {

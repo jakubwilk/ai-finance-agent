@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import { apiClient, type GraphStructureResponse } from '@/modules/common/api';
-import { GraphView } from '@/modules/graph/components/GraphView';
+import { GraphView } from '@/modules/common/components/GraphView';
 
 type LoadState =
   | { status: 'loading' }

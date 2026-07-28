@@ -1,9 +1,15 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import { resetMockRuns } from '@/modules/common/api/mockClient';
 
 import { RunsPage } from './RunsPage';
 
 describe('RunsPage', () => {
+  beforeEach(() => {
+    resetMockRuns();
+  });
+
   it('shows a loading state, then renders runs from the mock API client', async () => {
     render(<RunsPage />);
 
@@ -65,5 +71,22 @@ describe('RunsPage', () => {
     const links = screen.getAllByRole('link', { name: 'Details' });
     const hrefs = links.map((link) => link.getAttribute('href'));
     expect(hrefs).toContain('/runs/private-2026-W30');
+  });
+
+  it('adds a new run to the table after clicking "Run now"', async () => {
+    render(<RunsPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('row')).toHaveLength(5); // header + 4 runs
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run now' }));
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('row')).toHaveLength(6); // header + 5 runs
+    });
+
+    const rows = screen.getAllByRole('row');
+    expect(rows[1].textContent).toContain('Running');
   });
 });

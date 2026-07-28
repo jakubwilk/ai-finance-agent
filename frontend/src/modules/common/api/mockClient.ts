@@ -13,13 +13,24 @@ function delay<T>(value: T): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), MOCK_DELAY_MS));
 }
 
+// Mutable so triggerRun() has somewhere to persist a new run and
+// listRuns() can reflect it — mirrors how the real backend will behave
+// (POST /runs followed by GET /runs shows the new run) without waiting
+// on Plan A step 13.
+let runsState: RunSummary[] = [...MOCK_RUNS];
+
+/** Test-only: restores runsState so trigger tests don't leak between tests. */
+export function resetMockRuns() {
+  runsState = [...MOCK_RUNS];
+}
+
 export const mockClient: ApiClient = {
   getGraphStructure() {
     return delay(MOCK_GRAPH_STRUCTURE);
   },
 
   listRuns() {
-    return delay(MOCK_RUNS);
+    return delay([...runsState]);
   },
 
   triggerRun() {
@@ -29,6 +40,7 @@ export const mockClient: ApiClient = {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    runsState = [newRun, ...runsState];
     return delay(newRun);
   },
 
