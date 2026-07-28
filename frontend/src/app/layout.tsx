@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, JetBrains_Mono, Nunito_Sans } from 'next/font/google
 
 import './globals.css';
 import { cn } from '@/lib/utils';
+import { AppNav } from '@/modules/common/components/AppNav';
 
 const nunitoSansHeading = Nunito_Sans({ subsets: ['latin'], variable: '--font-heading' });
 
@@ -41,7 +42,10 @@ export default function RootLayout({
         nunitoSansHeading.variable,
       )}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="flex h-full min-h-full flex-col">
+        <AppNav />
+        <main className="flex min-h-0 flex-1 flex-col">{children}</main>
+      </body>
     </html>
   );
 }

@@ -36,7 +36,7 @@ export function GraphPage() {
   }, []);
 
   return (
-    <div className="flex h-screen w-screen flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <header className="border-border border-b px-4 py-3">
         <h1 className="text-lg font-semibold">Master graph</h1>
       </header>
