@@ -55,25 +55,186 @@ _Checklisty: `[ ]` = do zrobienia, `[x]` = zrobione — odznaczać w miarę post
    Autoryzacja: OAuth kontem osobistym użytkownika, zmienne
    `GOOGLE_OAUTH_CLIENT_ID`/`GOOGLE_OAUTH_CLIENT_SECRET`/`GOOGLE_OAUTH_REFRESH_TOKEN`
    — **zdecydowane**, blokujące nie ma.
+   - [x] Prerequisity: **fetch-on-demand** dla pobranych PDF-ów (bez trwałej
+     kopii lokalnej — Drive to jedyne źródło prawdy, `STATEMENTS` ma tylko
+     `drive_file_id`/`checksum`), zdecydowane z użytkownikiem i
+     udokumentowane w `docs/02`/`docs/15` (usunięty wolumen). Reference
+     data `ACCOUNTS` uzupełniona o ten sam wzorzec co `CATEGORIES`/
+     `FIXED_COSTS`: `data/local/accounts.json` + `accounts.example.json`,
+     unikalność `account_type` (migracja Alembic), rozszerzony
+     `seed_reference_data.py` (`upsert_accounts`), testy izolowane
+     transakcyjnie (`tests/conftest.py`: SAVEPOINT per test, żeby testy się
+     wzajemnie nie zanieczyszczały). Uruchomiony na realnej bazie dev —
+     zweryfikowane wyłącznie liczbą wierszy.
+   - [x] Klient Google Drive API (`subgraphs/ingestion/drive_client.py`):
+     `GoogleDriveClient` (`list_new_files` z paginacją `nextPageToken`,
+     `download_file` przez `MediaIoBaseDownload`) przyjmuje gotowy `service`
+     w konstruktorze (testowalne bez mockowania `googleapiclient.discovery.build`),
+     `build_credentials`/`build_drive_client` budują `Credentials`
+     bezpośrednio z `GOOGLE_OAUTH_CLIENT_ID`/`_SECRET`/`_REFRESH_TOKEN`
+     (scope `drive.readonly`), jasny błąd gdy brak. Testy w pełni
+     zmockowane (`tests/test_drive_client.py`), zgodnie z
+     [`16-spec-testing-strategy`](docs/16-spec-testing-strategy.md) — bez
+     realnego wywołania Drive (wartości `GOOGLE_OAUTH_*` wciąż nieuzupełnione
+     w `.env`, nie blokuje tego kroku).
+   - [x] Subgraph `ingestion` (`list_new_files` → `dedupe_check` →
+     `download` → `persist_metadata` → `update_sync_cursor`) skomponowany
+     w miejsce dzisiejszego placeholdera w master grafie. Zrobione:
+     `subgraphs/ingestion/{state,nodes,graph}.py` — 5 async node-factory
+     (DI: `AsyncSession`/`GoogleDriveClient` wstrzykiwane, ten sam wzorzec
+     co `_make_placeholder`), `IngestionState` nigdy nie niesie surowych
+     bajtów PDF (tylko `checksum` po `download`), `update_sync_cursor`
+     przesuwa `last_synced_at` po max `modified_time` ze wszystkich
+     odkrytych plików (nie tylko po dedupe). Po drodze wyszły dwie realne
+     luki, załatane: (1) `Statement.period_start/period_end/
+     opening_balance/closing_balance` musiały stać się nullable — te pola
+     zna dopiero `verification_pre_check` (czyta nagłówek/stopkę PDF), nie
+     ingestion (migracja `4458fb7299a5`, `docs/01`/`docs/02` zaktualizowane);
+     (2) `ACCOUNTS` dostało `last_synced_at` (mutowalny stan runtime, nie
+     seedowany) — ta sama migracja. Zweryfikowane bezpośrednio na
+     `langgraph==1.2.9`: graf z choć jednym async node'em rzuca czytelny
+     `TypeError` na sync `.invoke()` — stąd `build_master_graph(*,
+     ingestion_node=...)` z DI: domyślnie prawdziwy async subgraph
+     (`_ingestion_node`), testy branchingu w `test_master_graph.py`
+     wstrzykują placeholder i zostają sync/`.invoke()`. Testy:
+     `test_ingestion_graph.py` (fake drive client, `db_session` fixture,
+     real Postgres) — dedupe, pełny przebieg, zero-nowych-plików, podwójne
+     uruchomienie, konto bez skonfigurowanego folder ID pomijane, błąd
+     Drive nie jest połykany.
 
-2. [ ] **Verification — pre-check** — [`03-spec-statement-verification`](docs/03-spec-statement-verification.md)
-   (kroki 1–3): czytelność PDF, odczyt sald z nagłówka/stopki, sprawdzenie
-   duplikatów.
+     **Korekta (na życzenie użytkownika):** folder ID *nie* jest daną
+     seedowaną/kolumną w `ACCOUNTS` (odrzucone jako pierwsze podejście) —
+     żyje w `.env` jako `GOOGLE_DRIVE_FOLDER_ID_PRIVATE`/
+     `GOOGLE_DRIVE_FOLDER_ID_COMPANY` (ten sam wzorzec co
+     `REPORT_RECIPIENT_EMAIL_PRIVATE`/`_COMPANY` z kroku 11), migracja
+     `e215a6689507` usuwa tę kolumnę ponownie. `build_ingestion_graph`/
+     `make_list_new_files` przyjmują wstrzykiwany
+     `folder_ids_by_account_type: dict[str, str]` zamiast czytać kolumnę z
+     DB; `_ingestion_node` w `master.py` buduje to mapowanie z `settings`.
+     Potwierdzone też: ingestion zostaje **polling** (cron wg harmonogramu),
+     nie realny Drive `watch()`/webhook — ten wymagałby publicznego HTTPS
+     endpointu (krok 14, deployment) i odnawiania kanału co ~7 dni, co nie
+     ma sensu przy skali „kilka PDF-ów tygodniowo”.
 
-3. [ ] **Extraction** — [`04-spec-transaction-extraction`](docs/04-spec-transaction-extraction.md):
+     **Druga korekta (na życzenie użytkownika): usunięty cały podział
+     private/company.** Z konta firmowego użytkownik płaci wyłącznie
+     podatki i przelewa resztę na prywatne — więc firmowe nie jest częścią
+     tego systemu w ogóle, nie tylko wyłączone z analizy. `Account.account_type`
+     (kolumna + `CheckConstraint`/`UniqueConstraint`) i `Report.account_id`
+     usunięte (migracja `23df7ac4b4b4`) — `ACCOUNTS` trzyma teraz dokładnie
+     jeden wiersz (`display_name`/`bank_name`/`last_synced_at`), bez
+     "typu"; `Statement.account_id` zostaje (referencyjna integralność do
+     tego jedynego wiersza). `GOOGLE_DRIVE_FOLDER_ID_PRIVATE`/`_COMPANY` i
+     `REPORT_RECIPIENT_EMAIL_PRIVATE`/`_COMPANY` skolapsowane do pojedynczych
+     `GOOGLE_DRIVE_FOLDER_ID`/`REPORT_RECIPIENT_EMAIL`; `build_ingestion_graph`/
+     `make_list_new_files` przyjmują teraz pojedynczy `folder_id: str | None`
+     zamiast słownika po `account_type`. `seed_reference_data.py` waliduje,
+     że `accounts.json` ma co najwyżej jeden wpis. Poprawki objęły też
+     `README.md`, `docs/00`, `docs/01`, `docs/02`, `docs/04`, `docs/05`,
+     `docs/08`, `docs/09`, `docs/10`, `docs/11`, `docs/13`, `docs/15` —
+     usunięte wszystkie "otwarte kwestie" dotyczące per-konto branchingu
+     (raporty, inwestycje, orkiestracja, `POST /runs`), bo są teraz
+     rozstrzygnięte (zawsze jedno konto). Frontend nietknięty — potwierdzone
+     (3 agenty Explore), że `RunSummary`/`fixtures.ts` nie mają żadnej
+     zależności od tego rozróżnienia poza kosmetycznymi przykładowymi
+     `threadId` w mockach.
+
+2. [x] **Verification — pre-check** — [`03-spec-statement-verification`](docs/03-spec-statement-verification.md):
+   czytelność PDF, odczyt `period_start`/`period_end`, sprawdzenie
+   duplikatów. Zrobione: `subgraphs/verification/{state,nodes,graph}.py` —
+   3 węzły (`read_statement`, `check_duplicate`, `mark_result`), ten sam
+   wzorzec DI co ingestion. **Korekta na podstawie realnego przykładu**
+   (użytkownik dostarczył prawdziwy eksport PKO BP „Historia rachunku"):
+   pierwotny plan zakładał odczyt salda początkowego/końcowego z
+   nagłówka/stopki — tego pola w tym formacie **nie ma**. Realny format ma
+   tylko tabelę „Zastosowane kryteria wyboru" (`Od dnia`/`Do dnia`, jawne,
+   tanie) i „Saldo po transakcji" przy każdej linii transakcji. Stąd
+   `period_start`/`period_end` zostają w pre-checku, ale
+   `opening_balance`/`closing_balance` przesunięte do ekstrakcji (krok 3,
+   `docs/04`) jako efekt uboczny parsowania pierwszego/ostatniego wiersza —
+   `docs/01`/`docs/02`/`docs/03`/`docs/04` zaktualizowane. Nowa zależność:
+   `pdfplumber` (zatwierdzone przez użytkownika, MIT, sprawdzone bezpośrednio
+   na realnym pliku — `extract_tables()` daje dokładnie oczekiwany kształt
+   `['Od dnia', '2026-06-29', 'Kwota min', '-']`). `read_statement` łapie
+   każdy wyjątek z parsowania PDF-a (nie tylko brak tekstu) i traktuje jako
+   `unreadable_pdf` — inaczej pojedynczy uszkodzony plik wywaliłby cały
+   batch. Nowy `failure_reason`: `unparseable_period`. Duplikat sprawdzany
+   tylko po pokrywającym się zakresie dat (nie po `(account_id,
+   drive_file_id)` — to i tak niemożliwe dzięki unique constraint). Testy:
+   `test_verification_graph.py` — czyste testy logiki parsowania (bez
+   realnych bajtów PDF, żeby nie commitować przykładu użytkownika ani nie
+   dodawać zależności do generowania PDF-ów) + testy integracyjne na
+   `db_session` z wstrzykiwanym fake extractorem.
+
+3. [x] **Extraction** — [`04-spec-transaction-extraction`](docs/04-spec-transaction-extraction.md):
    wzorzec `StatementParser` (strategy pattern) + parser generyczny jako
-   fallback. Wybór biblioteki PDF zweryfikowany względem aktualnej
-   dokumentacji przy implementacji, nie z pamięci.
+   fallback. Zrobione: `subgraphs/extraction/parsers/{base,layout_utils,
+   pko_bp,generic}.py` + `subgraphs/extraction/{state,nodes,graph}.py` (2
+   węzły: `parse_statement`, `persist_transactions`). `pdfplumber`
+   (już dodany w kroku 2) wystarcza, ale inaczej niż w pre-checku —
+   `extract_tables()` zwraca zero tabel na stronach z transakcjami (brak
+   linii siatki), więc `PkoBpHistoriaRachunkuParser` parsuje przez
+   `extract_words()` (pozycje x0/top), z `layout_utils.cluster_words_into_rows`
+   (bankowo-agnostyczne) grupującym słowa w wiersze; nowa transakcja
+   zaczyna się tylko gdy kolumna „Data operacji” pasuje do
+   `\d{4}-\d{2}-\d{2}` (inaczej powtarzający się nagłówek strony
+   fałszywie dopasowuje się jako transakcja — znalezione i naprawione
+   podczas prototypowania na realnym przykładzie). `Opis` parsowany
+   generycznie jako pary `etykieta : wartość` (12+ różnych `Typ transakcji`
+   w jednym tygodniu — stała lista pól per typ byłaby krucha).
+   **Decyzje z użytkownikiem**: `TRANSACTIONS.raw_details` (nowy `jsonb`,
+   migracja `b870ab2d4d6b`) trzyma wszystko poza `description`/
+   `counterparty` (Lokalizacja/Adres/Miasto/Kraj/Nr karty/Nr rachunku/
+   Referencje/Identyfikator/Typ transakcji) — nic nie odrzucone, ale nic z
+   tego nie ma własnej kolumny; `txn_date` = Data operacji (nie Data
+   waluty). `derive_statement_balances` (opening/closing balance z
+   pierwszej/ostatniej sparsowanej transakcji, patrz korekta w kroku 2)
+   zaimplementowane w `persist_transactions`, status wyciągu zostaje
+   `verified` (post-check, krok 4, zmienia na `processed`/`failed`).
+   Testy: `test_extraction_graph.py` — parsery jednostkowo na ręcznie
+   zbudowanych słownikach pozycji słów (bez realnych bajtów PDF, ten sam
+   powód co w kroku 2) + integracyjne na `db_session`.
 
-4. [ ] **Verification — post-check** — [`03-spec-statement-verification`](docs/03-spec-statement-verification.md)
-   (krok 4): pełna zgodność sald po ekstrakcji.
+4. [x] **Verification — post-check** — [`03-spec-statement-verification`](docs/03-spec-statement-verification.md)
+   (krok 4): pełna zgodność sald po ekstrakcji. Zrobione:
+   `subgraphs/verification/post_check_{state,nodes,graph}.py` (osobne
+   pliki obok pre-checku w tym samym pakiecie, docs/03 traktuje oba jako
+   fazy jednego subgraphu `verification`) — 2 węzły:
+   `check_balance_consistency`, `mark_result`. Bez `drive_client` — to
+   czysta arytmetyka na bazie, żadnego dostępu do Drive/PDF. Rozstrzygnięta
+   ostatnia otwarta kwestia z `docs/03`: tolerancja zaokrągleń = **0.01
+   PLN** (przyjęta proponowana wartość domyślna). Nowy `failure_reason`:
+   `no_transactions_extracted` — wyciąg `verified`, który z jakiegoś powodu
+   nie wyprodukował żadnej transakcji (więc `opening_balance`/
+   `closing_balance` zostały `NULL` po ekstrakcji) jawnie failuje zamiast
+   być cicho pomijany. Status końcowy: `processed` (sukces) albo `failed`
+   (`balance_mismatch`/`no_transactions_extracted`). Testy:
+   `test_verification_post_check_graph.py` — zgodność, granica tolerancji
+   (dokładnie 0.01 nadal przechodzi), rozbieżność powyżej tolerancji, brak
+   wyekstrahowanych transakcji, zero wyciągów `verified`.
 
-5. [ ] **LLM integration — fundament** — [`12-spec-llm-integration-ollama`](docs/12-spec-llm-integration-ollama.md):
-   klient `ChatOllama`, timeout/retry/fallback, przed kategoryzacją bo ta
-   go konsumuje. Format zmiennych ustalony (`OLLAMA_BASE_URL`,
-   `OLLAMA_MODEL_*`, `OLLAMA_API_KEY`).
-   *Blokujące: konkretne wartości (URL, nazwy modeli) — do uzupełnienia
-   przez użytkownika w `.env` przed uruchomieniem, nie do zgadnięcia.*
+5. [x] **LLM integration — fundament** — [`12-spec-llm-integration-ollama`](docs/12-spec-llm-integration-ollama.md):
+   klient, timeout/retry/fallback, przed kategoryzacją bo ta go konsumuje.
+   **Korekta:** użytkownik potwierdził, że faktycznie używa **OVH AI
+   Endpoints**, nie self-hosted Ollama — zweryfikowane na żywym katalogu
+   (`https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/models`, bez
+   autoryzacji): serverless, **kompatybilne z OpenAI**, nie surowy
+   protokół Ollama. Stąd `langchain_openai.ChatOpenAI` z niestandardowym
+   `base_url`, nie `langchain-ollama`/`ChatOllama` (nowa zależność
+   `langchain-openai`, zatwierdzona). Zmienne przemianowane
+   `OLLAMA_BASE_URL`/`OLLAMA_MODEL_*`/`OLLAMA_API_KEY` →
+   `OVH_AI_ENDPOINTS_BASE_URL`/`OVH_AI_ENDPOINTS_API_KEY`/
+   `OVH_MODEL_CLASSIFICATION`/`_INVESTMENT`/`_REPORTING` (użytkownik
+   uzupełnił wartości pod nowymi nazwami). Zrobione:
+   `backend/src/finance_agent/llm/client.py` — `build_chat_model`
+   (czytelny błąd nazywający brakującą zmienną, `timeout=60`,
+   `max_retries=3` realizujące „timeout i retry z backoff” natywnie przez
+   `langchain_openai`) + `build_classification_model`/
+   `build_investment_model`/`build_reporting_model` jako gotowe wejście
+   dla kroków 6/9/10. Tylko fundament (konstrukcja klienta) — logika
+   zadaniowa i fallback specyficzny dla zadania zostają w tamtych krokach.
+   Testy: `test_llm_client.py` — konstrukcja/wiring, bez realnego
+   wywołania OVH API.
 
 6. [ ] **Categorization** — [`06-spec-categorization`](docs/06-spec-categorization.md):
    `rule_match` → `llm_classify` → `confidence_gate` → `interrupt()` do
@@ -227,6 +388,5 @@ dłużej.)
 
 | Otwarta kwestia | Blokuje | Specyfikacja |
 |---|---|---|
-| Konkretne wartości `OLLAMA_BASE_URL`/`OLLAMA_MODEL_*` (format zmiennych już ustalony) | Plan A krok 5 | [`12-spec-llm-integration-ollama`](docs/12-spec-llm-integration-ollama.md) |
 | Profil ryzyka, lista instrumentów inwestycyjnych, wielkość poduszki bezpieczeństwa | Plan A krok 9 | [`08-spec-investment-analysis`](docs/08-spec-investment-analysis.md) |
 | Konkretne wartości SMTP i adresów odbiorców (format zmiennych już ustalony) | Plan A krok 11 | [`10-spec-email-delivery`](docs/10-spec-email-delivery.md) |

@@ -1,6 +1,6 @@
 # AI Finance Agent
 
-Agent automatyzujący cotygodniową analizę finansów prywatnych i firmowych:
+Agent automatyzujący cotygodniową analizę finansów prywatnych:
 odbiera wyciągi bankowe wgrywane na Dysk Google, weryfikuje ich poprawność,
 wyciąga z nich transakcje, kategoryzuje je, wylicza bilans
 przychodów/wydatków, proponuje alokację nadwyżki na inwestycje i wysyła
@@ -22,7 +22,7 @@ technologii: [`docs/00-spec-overview-architecture.md`](docs/00-spec-overview-arc
 | Komponenty UI | shadcn/ui (Tailwind + Radix/Base UI) |
 | API pośredniczące | FastAPI |
 | Baza danych | PostgreSQL — lokalnie i w każdym środowisku (dev/prod) |
-| LLM | Ollama hostowane na OVH (self-hosted) |
+| LLM | OVH AI Endpoints (serverless, OpenAI-compatible) |
 | Deploy | Docker + Coolify |
 
 Szczegóły i uzasadnienie: [`docs/00-spec-overview-architecture.md`](docs/00-spec-overview-architecture.md).
@@ -43,7 +43,7 @@ Szczegóły i uzasadnienie: [`docs/00-spec-overview-architecture.md`](docs/00-sp
 | 09 | [reporting](docs/09-spec-reporting.md) | treść raportu tygodniowego/miesięcznego |
 | 10 | [email-delivery](docs/10-spec-email-delivery.md) | wysyłka raportów przez SMTP |
 | 11 | [orchestration-scheduling](docs/11-spec-orchestration-scheduling.md) | master graph LangGraph + harmonogram |
-| 12 | [llm-integration-ollama](docs/12-spec-llm-integration-ollama.md) | integracja z Ollama na OVH |
+| 12 | [llm-integration-ollama](docs/12-spec-llm-integration-ollama.md) | integracja z OVH AI Endpoints |
 | 13 | [backend-api](docs/13-spec-backend-api.md) | FastAPI dla UI (trigger, historia, stan grafu) |
 | 14 | [frontend-ui](docs/14-spec-frontend-ui.md) | React UI (graf, historia, review kategoryzacji) |
 | 15 | [deployment-coolify](docs/15-spec-deployment-coolify.md) | topologia Docker/Coolify |
@@ -59,9 +59,6 @@ biblioteki) są opisane w [`CLAUDE.md`](CLAUDE.md).
 
 - **Profil ryzyka i dostępne instrumenty inwestycyjne** —
   [`08-spec-investment-analysis`](docs/08-spec-investment-analysis.md).
-- **Konkretne wartości endpointu/modeli Ollama na OVH** (format zmiennych
-  środowiskowych już ustalony) —
-  [`12-spec-llm-integration-ollama`](docs/12-spec-llm-integration-ollama.md).
 - **Konkretne wartości SMTP i adresów odbiorców raportów** (format
   zmiennych środowiskowych już ustalony) —
   [`10-spec-email-delivery`](docs/10-spec-email-delivery.md).
