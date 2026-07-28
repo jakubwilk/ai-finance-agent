@@ -91,6 +91,33 @@ class Category(Base):
     type: Mapped[str] = mapped_column(Text)
 
 
+class CategoryRule(Base):
+    """Learned/curated dictionary for `rule_match` (docs/06-spec-categorization.md).
+
+    `match_key` is the lowercased/stripped `Transaction.counterparty` if
+    present, else `Transaction.description` — counterparty is preferred
+    because it's stable across recurring transfers with varying titles,
+    while card payments only ever have a description.
+    """
+
+    __tablename__ = "category_rules"
+    __table_args__ = (
+        UniqueConstraint("match_key", name="uq_category_rules_match_key"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    match_key: Mapped[str] = mapped_column(Text)
+    category_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("categories.id")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
 class Transaction(Base):
     __tablename__ = "transactions"
     __table_args__ = (
