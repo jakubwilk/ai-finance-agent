@@ -1,0 +1,18 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.0
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        files: ^backend/
+      - id: ruff-format
+        files: ^backend/
+
+  - repo: local
+    hooks:
+      - id: frontend-lint-staged
+        name: frontend lint-staged (eslint + prettier)
+        entry: bash -c 'cd frontend && npx lint-staged'
+        language: system
+        files: ^frontend/.*\.(ts|tsx|json|md|css)$
+        pass_filenames: false

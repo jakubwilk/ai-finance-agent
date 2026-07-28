@@ -28,6 +28,14 @@ _Checklisty: `[ ]` = do zrobienia, `[x]` = zrobione — odznaczać w miarę post
    `data/local/*.json` → tabele `CATEGORIES`/`FIXED_COSTS` (patrz sekcja
    „Przechowywanie realnej zawartości” w tej specyfikacji).
    *Blokujące: brak — start od razu.*
+   - [x] Scaffold `backend/` (uv, Python 3.12, `langchain`/`langgraph`/
+     `pydantic-settings`, ruff+pytest), `config.py` (wszystkie znane
+     zmienne z `.env.example`, bez wartości), oraz szkielet master grafu
+     (`graph/master.py`) z węzłami-placeholderami i pełnym rozgałęzieniem
+     1:1 z diagramem w [`11-spec-orchestration-scheduling`](docs/11-spec-orchestration-scheduling.md),
+     pokryty testami (`tests/test_master_graph.py`).
+   - [ ] Lokalny PostgreSQL + migracje wg `01-spec-data-model`.
+   - [ ] Skrypt seedujący `data/local/*.json` → `CATEGORIES`/`FIXED_COSTS`.
 
 1. [ ] **Ingestion** — [`02-spec-google-drive-ingestion`](docs/02-spec-google-drive-ingestion.md):
    monitoring folderów Drive, pobieranie plików, zapis do `STATEMENTS`.
@@ -107,11 +115,18 @@ _Checklisty: `[ ]` = do zrobienia, `[x]` = zrobione — odznaczać w miarę post
 
 _Checklisty: `[ ]` = do zrobienia, `[x]` = zrobione — odznaczać w miarę postępu._
 
-0. [ ] **Scaffold** — skill `init-frontend` (Next.js, TypeScript, Tailwind,
+0. [x] **Scaffold** — skill `init-frontend` (Next.js, TypeScript, Tailwind,
    Vitest), następnie shadcn/ui dokładnie wg ustalenia w `CLAUDE.md`:
    `npx shadcn@latest init` → `npx shadcn@latest apply --preset
    byZfcT1E0` → `npx shadcn@latest add <component>` w miarę potrzeb
-   kolejnych widoków.
+   kolejnych widoków. Zrobione: `frontend/` (Next.js 16 App Router,
+   TypeScript, Tailwind v4, ESLint+import+Prettier, lint-staged, Vitest),
+   bez Mantine; shadcn/ui zainicjalizowane (Base UI) z presetem
+   `byZfcT1E0` — konkretne komponenty (`shadcn add`) dopiero z kolejnymi
+   widokami. Git hooks: repo-wide `pre-commit` (root
+   `.pre-commit-config.yaml`) zamiast Husky — `ruff-check`/`ruff-format`
+   dla `backend/`, `lint-staged` (eslint+prettier) dla `frontend/`,
+   każdy odpalany tylko gdy commit dotyka odpowiedniego katalogu.
 
 1. [ ] **Klient API + warstwa mocków** — typowany klient zgodny 1:1 z tabelą
    endpointów w [`13-spec-backend-api`](docs/13-spec-backend-api.md),

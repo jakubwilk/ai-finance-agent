@@ -7,3 +7,10 @@ data/local/*.json
 .env
 .env.*
 !.env.example
+
+# Python (backend/)
+backend/.venv/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
