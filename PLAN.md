@@ -22,7 +22,7 @@ korzystając z mocka API (patrz Plan B, krok 1). Wyjątki:
 
 _Checklisty: `[ ]` = do zrobienia, `[x]` = zrobione — odznaczać w miarę postępu._
 
-0. [ ] **Fundament** — scaffold repo (skille `langgraph-python-quickstart`,
+0. [x] **Fundament** — scaffold repo (skille `langgraph-python-quickstart`,
    `langchain-dependencies`), lokalny PostgreSQL, migracje wg
    [`01-spec-data-model`](docs/01-spec-data-model.md), skrypt seedujący
    `data/local/*.json` → tabele `CATEGORIES`/`FIXED_COSTS` (patrz sekcja
@@ -41,7 +41,14 @@ _Checklisty: `[ ]` = do zrobienia, `[x]` = zrobione — odznaczać w miarę post
      integracyjnymi (`tests/test_db_schema.py`: upgrade/downgrade na czystej
      bazie testowej, integralność FK, unikalność `(account_id,
      drive_file_id)`).
-   - [ ] Skrypt seedujący `data/local/*.json` → `CATEGORIES`/`FIXED_COSTS`.
+   - [x] Skrypt seedujący (`backend/scripts/seed_reference_data.py`):
+     walidacja Pydantic, idempotentny upsert po nazwie (bezpieczny do
+     wielokrotnego uruchamiania), jasny błąd przy koszcie stałym
+     wskazującym na nieistniejącą kategorię. Testy na fixture'ach w
+     `tests/test_seed_reference_data.py` (nigdy na realnych
+     `data/local/*.json`). Uruchomiony też raz na realnych danych
+     dev-owych — zweryfikowane wyłącznie liczbą wierszy, bez ujawniania
+     treści.
 
 1. [ ] **Ingestion** — [`02-spec-google-drive-ingestion`](docs/02-spec-google-drive-ingestion.md):
    monitoring folderów Drive, pobieranie plików, zapis do `STATEMENTS`.
