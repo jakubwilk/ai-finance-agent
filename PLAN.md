@@ -34,7 +34,13 @@ _Checklisty: `[ ]` = do zrobienia, `[x]` = zrobione — odznaczać w miarę post
      (`graph/master.py`) z węzłami-placeholderami i pełnym rozgałęzieniem
      1:1 z diagramem w [`11-spec-orchestration-scheduling`](docs/11-spec-orchestration-scheduling.md),
      pokryty testami (`tests/test_master_graph.py`).
-   - [ ] Lokalny PostgreSQL + migracje wg `01-spec-data-model`.
+   - [x] Lokalny PostgreSQL (Docker Compose, `backend/docker-compose.yml`,
+     `postgres:17-alpine` + osobna baza `finance_agent_test`) + modele
+     SQLAlchemy 2.0 (`db/models.py`) 1:1 z ERD, migracje Alembic (async
+     template, `alembic/versions/…_initial_schema.py`), pokryte testami
+     integracyjnymi (`tests/test_db_schema.py`: upgrade/downgrade na czystej
+     bazie testowej, integralność FK, unikalność `(account_id,
+     drive_file_id)`).
    - [ ] Skrypt seedujący `data/local/*.json` → `CATEGORIES`/`FIXED_COSTS`.
 
 1. [ ] **Ingestion** — [`02-spec-google-drive-ingestion`](docs/02-spec-google-drive-ingestion.md):
@@ -128,17 +134,33 @@ _Checklisty: `[ ]` = do zrobienia, `[x]` = zrobione — odznaczać w miarę post
    dla `backend/`, `lint-staged` (eslint+prettier) dla `frontend/`,
    każdy odpalany tylko gdy commit dotyka odpowiedniego katalogu.
 
-1. [ ] **Klient API + warstwa mocków** — typowany klient zgodny 1:1 z tabelą
+1. [x] **Klient API + warstwa mocków** — typowany klient zgodny 1:1 z tabelą
    endpointów w [`13-spec-backend-api`](docs/13-spec-backend-api.md),
    oparty na lokalnym mock/fixture serwerze, żeby praca nad UI nie czekała
    na Plan A krok 13. Po jego ukończeniu — przełączenie na realny base URL
-   backendu.
+   backendu. Zrobione: `frontend/src/modules/common/{models/api.ts,api/}`
+   — `ApiClient` interfejs wspólny dla `client.ts` (realny fetch) i
+   `mockClient.ts` (fixture'y, w tym dokładny mermaid master grafu z
+   `11-spec-orchestration-scheduling`), przełącznik w `api/index.ts` przez
+   `NEXT_PUBLIC_USE_MOCK_API` (domyślnie mock, bez potrzeby `.env`).
+   Kształty `RunState`/`RunHistoryEntry` celowo luźno typowane
+   (`MasterGraphState` w `backend/` to na razie szkielet) — do
+   doprecyzowania przy Planie A kroku 13.
 
-2. [ ] **Graph View** — renderowanie struktury grafu przy użyciu **React
+2. [x] **Graph View** — renderowanie struktury grafu przy użyciu **React
    Flow** (`@xyflow/react` — zdecydowane, patrz
    [`14-spec-frontend-ui`](docs/14-spec-frontend-ui.md)); wymaga osobnej
    biblioteki auto-layoutu (np. `dagre`/`elkjs`); podświetlenie aktualnie
-   wykonywanego węzła dla trwających runów.
+   wykonywanego węzła dla trwających runów. Zrobione:
+   `frontend/src/modules/graph/` (`GraphView` + `getLayoutedElements` na
+   `@dagrejs/dagre`, wg oficjalnego przykładu reactflow.dev), route
+   `/graph`. `GraphStructureResponse` rozszerzone o `nodes`/`edges`
+   (obok `mermaid`) w `common/models/api.ts` — React Flow potrzebuje
+   ustrukturyzowanych danych, nie samego tekstu mermaid; fixture 1:1 z
+   diagramem `11-spec-orchestration-scheduling`. Podświetlanie
+   aktualnego węzła: prop `activeNodeId` na `GraphView` (przetestowany),
+   nie podłączony jeszcze do realnego runu — to naturalnie przyjdzie z
+   Run Detail (krok 4), gdzie `next` z historii faktycznie to mówi.
 
 3. [ ] **Runs / History** — lista `GET /runs` z odznakami statusu.
 
