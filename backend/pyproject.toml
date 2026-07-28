@@ -10,6 +10,9 @@ requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.18.5",
     "asyncpg>=0.31.0",
+    "google-api-python-client>=2.198.0",
+    "google-auth>=2.56.2",
+    "google-auth-httplib2>=0.4.0",
     "langchain>=1.0,<2.0",
     "langchain-core>=1.0,<2.0",
     "langgraph>=1.0,<2.0",

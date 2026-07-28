@@ -11,8 +11,15 @@ from finance_agent.graph.master import (
     REPORTING,
     VERIFICATION_POST_CHECK,
     VERIFICATION_PRE_CHECK,
+    _make_placeholder,
     build_master_graph,
 )
+
+# The 3 behavioral tests below only care about branching logic, not the real
+# ingestion subgraph (which needs a DB session + Drive client) — inject the
+# same cheap placeholder every other node uses, so these stay pure, fast,
+# sync unit tests invocable via `.invoke()`.
+_PLACEHOLDER_INGESTION_NODE = _make_placeholder(INGESTION)
 
 ALL_NODES = [
     INGESTION,
@@ -44,7 +51,7 @@ def test_mermaid_contains_every_node():
 
 
 def test_happy_path_reaches_end_without_review():
-    graph = build_master_graph()
+    graph = build_master_graph(ingestion_node=_PLACEHOLDER_INGESTION_NODE)
 
     result = graph.invoke(
         {"verification_ok": True, "needs_review": False, "visited": []}
@@ -65,7 +72,7 @@ def test_happy_path_reaches_end_without_review():
 
 
 def test_happy_path_with_needs_review_routes_through_human_review():
-    graph = build_master_graph()
+    graph = build_master_graph(ingestion_node=_PLACEHOLDER_INGESTION_NODE)
 
     result = graph.invoke(
         {"verification_ok": True, "needs_review": True, "visited": []}
@@ -83,7 +90,7 @@ def test_happy_path_with_needs_review_routes_through_human_review():
 
 
 def test_verification_pre_check_failure_routes_to_alert_and_ends():
-    graph = build_master_graph()
+    graph = build_master_graph(ingestion_node=_PLACEHOLDER_INGESTION_NODE)
 
     result = graph.invoke(
         {"verification_ok": False, "needs_review": False, "visited": []}

@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: str | None = None
     google_oauth_refresh_token: str | None = None
+    google_drive_folder_id: str | None = None
 
     ollama_base_url: str | None = None
     ollama_model_classification: str | None = None
@@ -30,8 +31,7 @@ class Settings(BaseSettings):
     smtp_user: str | None = None
     smtp_password: str | None = None
 
-    report_recipient_email_private: str | None = None
-    report_recipient_email_company: str | None = None
+    report_recipient_email: str | None = None
 
 
 settings = Settings()

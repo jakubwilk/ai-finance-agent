@@ -42,9 +42,7 @@ async def test_transaction_requires_existing_statement(db_session):
 
 
 async def test_statement_unique_account_and_drive_file(db_session):
-    account = Account(
-        account_type="private", display_name="Test Account", bank_name="Test Bank"
-    )
+    account = Account(display_name="Test Account", bank_name="Test Bank")
     db_session.add(account)
     await db_session.commit()
 
@@ -67,3 +65,23 @@ async def test_statement_unique_account_and_drive_file(db_session):
     db_session.add(make_statement())
     with pytest.raises(IntegrityError):
         await db_session.commit()
+
+
+async def test_statement_period_and_balance_columns_are_nullable(db_session):
+    """Ingestion's persist_metadata inserts a Statement before verification
+    has parsed the PDF header/footer — period/balance columns must accept
+    NULL until verification pre-check fills them in (docs/02, docs/03)."""
+    account = Account(display_name="Test Account", bank_name="Test Bank")
+    db_session.add(account)
+    await db_session.flush()
+
+    db_session.add(
+        Statement(
+            account_id=account.id,
+            drive_file_id="file-id",
+            file_name="statement.pdf",
+            checksum="abc123",
+            status="pending",
+        )
+    )
+    await db_session.commit()

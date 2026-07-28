@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 from alembic.config import Config
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from alembic import command
 from finance_agent.config import settings
@@ -54,8 +54,23 @@ def migrated_test_db():
 
 @pytest.fixture
 async def db_session():
+    """Each test runs inside its own SAVEPOINT nested in one outer transaction
+    that's always rolled back — so tests never see rows committed by other
+    tests (e.g. two tests each creating an `Account` row), regardless of run
+    order. Standard SQLAlchemy pattern for test isolation:
+    https://docs.sqlalchemy.org/en/20/orm/session_transaction.html#joining-a-session-into-an-external-transaction-such-as-for-test-suites
+    """
     engine = create_async_engine(settings.test_database_url)
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with session_factory() as session:
-        yield session
+    async with engine.connect() as connection:
+        outer_transaction = await connection.begin()
+        session = AsyncSession(
+            bind=connection,
+            join_transaction_mode="create_savepoint",
+            expire_on_commit=False,
+        )
+        try:
+            yield session
+        finally:
+            await session.close()
+            await outer_transaction.rollback()
     await engine.dispose()

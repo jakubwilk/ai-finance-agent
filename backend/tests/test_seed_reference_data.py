@@ -4,8 +4,12 @@ from pathlib import Path
 import pytest
 from sqlalchemy import select
 
-from finance_agent.db.models import Category, FixedCost
+from finance_agent.db.models import Account, Category, FixedCost
 from scripts.seed_reference_data import seed
+
+FAKE_ACCOUNTS = [
+    {"display_name": "Personal", "bank_name": "Fake Bank"},
+]
 
 FAKE_CATEGORIES = [
     {"name": "Groceries", "score": 90, "type": "expense"},
@@ -23,9 +27,13 @@ FAKE_FIXED_COSTS = [
 
 
 def _write_fixture_json(
-    data_dir: Path, categories: list[dict], fixed_costs: list[dict]
+    data_dir: Path,
+    accounts: list[dict] = FAKE_ACCOUNTS,
+    categories: list[dict] = FAKE_CATEGORIES,
+    fixed_costs: list[dict] = FAKE_FIXED_COSTS,
 ) -> Path:
     data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "accounts.json").write_text(json.dumps(accounts), encoding="utf-8")
     (data_dir / "categories.json").write_text(json.dumps(categories), encoding="utf-8")
     (data_dir / "fixed_costs.json").write_text(
         json.dumps(fixed_costs), encoding="utf-8"
@@ -33,11 +41,15 @@ def _write_fixture_json(
     return data_dir
 
 
-async def test_seed_creates_categories_and_fixed_costs(db_session, tmp_path):
-    data_dir = _write_fixture_json(tmp_path, FAKE_CATEGORIES, FAKE_FIXED_COSTS)
+async def test_seed_creates_accounts_categories_and_fixed_costs(db_session, tmp_path):
+    data_dir = _write_fixture_json(tmp_path)
 
     await seed(db_session, data_dir)
     await db_session.commit()
+
+    account = (await db_session.execute(select(Account))).scalar_one()
+    assert account.display_name == "Personal"
+    assert account.bank_name == "Fake Bank"
 
     categories = {
         c.name: c for c in (await db_session.execute(select(Category))).scalars()
@@ -55,23 +67,31 @@ async def test_seed_creates_categories_and_fixed_costs(db_session, tmp_path):
 
 
 async def test_seed_is_idempotent_and_updates_changed_fields(db_session, tmp_path):
-    data_dir = _write_fixture_json(tmp_path, FAKE_CATEGORIES, FAKE_FIXED_COSTS)
+    data_dir = _write_fixture_json(tmp_path)
     await seed(db_session, data_dir)
     await db_session.commit()
 
+    updated_accounts = [
+        {"display_name": "Renamed", "bank_name": "Fake Bank"},
+    ]
     updated_categories = [
         {"name": "Groceries", "score": 42, "type": "expense"},
         FAKE_CATEGORIES[1],
     ]
-    _write_fixture_json(tmp_path, updated_categories, FAKE_FIXED_COSTS)
+    _write_fixture_json(
+        tmp_path, updated_accounts, updated_categories, FAKE_FIXED_COSTS
+    )
     await seed(db_session, data_dir)
     await db_session.commit()
 
+    all_accounts = (await db_session.execute(select(Account))).scalars().all()
     all_categories = (await db_session.execute(select(Category))).scalars().all()
     all_fixed_costs = (await db_session.execute(select(FixedCost))).scalars().all()
 
+    assert len(all_accounts) == 1
     assert len(all_categories) == 2
     assert len(all_fixed_costs) == 1
+    assert all_accounts[0].display_name == "Renamed"
     groceries = next(c for c in all_categories if c.name == "Groceries")
     assert groceries.score == 42
 
@@ -86,8 +106,19 @@ async def test_seed_raises_on_unknown_category_reference(db_session, tmp_path):
         }
     ]
     data_dir = _write_fixture_json(
-        tmp_path, FAKE_CATEGORIES, fixed_costs_with_unknown_category
+        tmp_path, fixed_costs=fixed_costs_with_unknown_category
     )
 
     with pytest.raises(ValueError, match="DoesNotExist"):
+        await seed(db_session, data_dir)
+
+
+async def test_seed_raises_on_more_than_one_account_in_source(db_session, tmp_path):
+    two_accounts = [
+        FAKE_ACCOUNTS[0],
+        {"display_name": "Business", "bank_name": "Fake Biz Bank"},
+    ]
+    data_dir = _write_fixture_json(tmp_path, accounts=two_accounts)
+
+    with pytest.raises(ValueError, match="co najwyżej jedno konto"):
         await seed(db_session, data_dir)

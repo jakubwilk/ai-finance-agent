@@ -27,16 +27,13 @@ def _utcnow() -> datetime:
 
 class Account(Base):
     __tablename__ = "accounts"
-    __table_args__ = (
-        CheckConstraint(
-            "account_type IN ('private', 'company')", name="ck_accounts_account_type"
-        ),
-    )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
-    account_type: Mapped[str] = mapped_column(Text)
     display_name: Mapped[str] = mapped_column(Text)
     bank_name: Mapped[str] = mapped_column(Text)
+    last_synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )
@@ -61,10 +58,14 @@ class Statement(Base):
     drive_file_id: Mapped[str] = mapped_column(Text)
     file_name: Mapped[str] = mapped_column(Text)
     checksum: Mapped[str] = mapped_column(Text)
-    period_start: Mapped[date] = mapped_column(Date)
-    period_end: Mapped[date] = mapped_column(Date)
-    opening_balance: Mapped[Decimal] = mapped_column(Numeric(14, 2))
-    closing_balance: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    period_start: Mapped[date | None] = mapped_column(Date, nullable=True)
+    period_end: Mapped[date | None] = mapped_column(Date, nullable=True)
+    opening_balance: Mapped[Decimal | None] = mapped_column(
+        Numeric(14, 2), nullable=True
+    )
+    closing_balance: Mapped[Decimal | None] = mapped_column(
+        Numeric(14, 2), nullable=True
+    )
     status: Mapped[str] = mapped_column(Text)
     failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     ingested_at: Mapped[datetime] = mapped_column(
@@ -155,9 +156,6 @@ class Report(Base):
     )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
-    account_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=True
-    )
     report_type: Mapped[str] = mapped_column(Text)
     period_start: Mapped[date] = mapped_column(Date)
     period_end: Mapped[date] = mapped_column(Date)

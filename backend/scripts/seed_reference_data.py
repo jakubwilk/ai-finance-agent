@@ -1,12 +1,14 @@
-"""Seed CATEGORIES/FIXED_COSTS from data/local/*.json.
+"""Seed ACCOUNTS/CATEGORIES/FIXED_COSTS from data/local/*.json.
 
 Usage: uv run python scripts/seed_reference_data.py
 
-Reads the real, gitignored data/local/categories.json and
-data/local/fixed_costs.json (see docs/01-spec-data-model.md's
-"Przechowywanie realnej zawartości" section) and upserts them into the
-Postgres tables via the SQLAlchemy models. Safe to re-run: existing rows are
-matched by name and updated in place rather than duplicated.
+Reads the real, gitignored data/local/accounts.json, categories.json and
+fixed_costs.json (see docs/01-spec-data-model.md's "Przechowywanie realnej
+zawartości" section) and upserts them into the Postgres tables via the
+SQLAlchemy models. Safe to re-run: existing rows are matched by their
+natural key (name for categories/fixed costs; accounts.json holds at most
+one entry, matched against the single existing Account row if any) and
+updated in place rather than duplicated.
 """
 
 import asyncio
@@ -19,11 +21,16 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from finance_agent.db.models import Category, FixedCost
+from finance_agent.db.models import Account, Category, FixedCost
 from finance_agent.db.session import async_session_factory
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DATA_LOCAL_DIR = REPO_ROOT / "data" / "local"
+
+
+class AccountSeed(BaseModel):
+    display_name: str
+    bank_name: str
 
 
 class CategorySeed(BaseModel):
@@ -50,6 +57,11 @@ def _load_json(path: Path) -> list[dict]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def load_accounts(data_dir: Path) -> list[AccountSeed]:
+    raw = _load_json(data_dir / "accounts.json")
+    return [AccountSeed.model_validate(item) for item in raw]
+
+
 def load_categories(data_dir: Path) -> list[CategorySeed]:
     raw = _load_json(data_dir / "categories.json")
     return [CategorySeed.model_validate(item) for item in raw]
@@ -58,6 +70,26 @@ def load_categories(data_dir: Path) -> list[CategorySeed]:
 def load_fixed_costs(data_dir: Path) -> list[FixedCostSeed]:
     raw = _load_json(data_dir / "fixed_costs.json")
     return [FixedCostSeed.model_validate(item) for item in raw]
+
+
+async def upsert_accounts(session: AsyncSession, accounts: list[AccountSeed]) -> None:
+    if len(accounts) > 1:
+        raise ValueError(
+            "accounts.json musi zawierać co najwyżej jedno konto — "
+            f"znaleziono {len(accounts)}."
+        )
+    if not accounts:
+        return
+
+    seed = accounts[0]
+    existing = (await session.execute(select(Account))).scalars().first()
+    if existing is None:
+        session.add(Account(display_name=seed.display_name, bank_name=seed.bank_name))
+    else:
+        existing.display_name = seed.display_name
+        existing.bank_name = seed.bank_name
+
+    await session.flush()
 
 
 async def upsert_categories(
@@ -113,6 +145,7 @@ async def upsert_fixed_costs(
 
 
 async def seed(session: AsyncSession, data_dir: Path = DEFAULT_DATA_LOCAL_DIR) -> None:
+    await upsert_accounts(session, load_accounts(data_dir))
     await upsert_categories(session, load_categories(data_dir))
     await upsert_fixed_costs(session, load_fixed_costs(data_dir))
 
@@ -126,10 +159,12 @@ async def main() -> None:
             raise
         await session.commit()
 
+        account_count = (await session.execute(select(Account))).scalars().all()
         category_count = (await session.execute(select(Category))).scalars().all()
         fixed_cost_count = (await session.execute(select(FixedCost))).scalars().all()
         print(
-            f"Seeded {len(category_count)} categories, {len(fixed_cost_count)} fixed costs."
+            f"Seeded {len(account_count)} accounts, {len(category_count)} categories, "
+            f"{len(fixed_cost_count)} fixed costs."
         )
 
 
