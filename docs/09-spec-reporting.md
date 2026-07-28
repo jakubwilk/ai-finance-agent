@@ -58,8 +58,6 @@ Nie wchodzi: sama wysyłka (patrz [[10-spec-email-delivery]]) ani wyliczenia
 
 ## Otwarte kwestie
 
-- Czy raport ma być jeden łączony (prywatne + firmowe w jednym mailu z
-  dwiema sekcjami), czy dwa osobne raporty per konto — do ustalenia.
 - Format wizualizacji w mailu HTML (proste tabele vs. wbudowane
   wykresy/obrazki) — przy budowie skonsultować skill `dataviz`.
 - Język raportu — zakładam polski, zgodnie z językiem komunikacji w tym

@@ -41,14 +41,14 @@ checkpointera zgodnie z `langgraph-persistence`.
 
 - **Trigger tygodniowy** — cron (np. `langgraph-cli`/scheduler zewnętrzny
   albo cron Coolify wywołujący endpoint FastAPI, patrz
-  [[13-spec-backend-api]]) uruchamiający master graph raz w tygodniu, osobno
-  dla `account_type = private` i `account_type = company` (albo jeden run
-  obsługujący oba, do ustalenia).
+  [[13-spec-backend-api]]) uruchamiający master graph raz w tygodniu —
+  zawsze dokładnie jeden run (jedno śledzone konto, patrz
+  [[01-spec-data-model]]).
 - **Raport miesięczny** — nie osobny trigger, lecz warunek wewnątrz węzła
   `reporting`: jeśli data uruchomienia przypada na pierwszy przebieg po
   końcu miesiąca kalendarzowego → dodatkowo wygeneruj raport miesięczny
   (patrz [[09-spec-reporting]] `determine_report_types`).
-- **`thread_id`** — jeden wątek per `(account_id, tydzień)`, umożliwiający
+- **`thread_id`** — jeden wątek per tydzień, umożliwiający
   `get_state_history` i time-travel dla debugowania konkretnego
   uruchomienia (patrz [[13-spec-backend-api]] dla wystawienia tego w UI).
 
@@ -70,10 +70,6 @@ Zależy od wszystkich subworkflowów 02–10. Konsumowane przez
 - Mechanizm cron: harmonogram wewnątrz aplikacji (np. APScheduler w
   procesie FastAPI) vs. zewnętrzny cron Coolify uderzający w endpoint — do
   ustalenia przy [[15-spec-deployment-coolify]].
-- Czy konto prywatne i firmowe są przetwarzane w jednym uruchomieniu grafu
-  (dwie gałęzie równoległe), czy w dwóch niezależnych runach z osobnymi
-  `thread_id` — wpływa na strukturę master grafu (`Send` API do
-  równoległego fan-out per konto, patrz `langgraph-fundamentals`).
 - Zachowanie przy błędzie w trakcie długiego `human_review` (co jeśli
   przegląd nie zostanie potwierdzony przed terminem raportu tygodniowego) —
   do ustalenia: raport z ostrzeżeniem o niekompletnych danych vs. opóźnienie

@@ -41,12 +41,7 @@ własny serwer — działa identycznie dla każdego z nich):
 | `SMTP_PORT` | port serwera SMTP |
 | `SMTP_USER` | użytkownik/login SMTP |
 | `SMTP_PASSWORD` | hasło / app-password SMTP |
-| `REPORT_RECIPIENT_EMAIL_PRIVATE` | odbiorca raportów konta prywatnego |
-| `REPORT_RECIPIENT_EMAIL_COMPANY` | odbiorca raportów konta firmowego |
-
-Dwie osobne zmienne odbiorcy rozstrzygają też pytanie „jeden mail czy
-różni odbiorcy": wpisanie tego samego adresu w obie zmienne = jeden
-odbiorca, różnych = dwóch.
+| `REPORT_RECIPIENT_EMAIL` | odbiorca raportów |
 
 ## Kroki / węzły grafu (subgraph `email_delivery`)
 

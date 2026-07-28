@@ -54,10 +54,6 @@ wykrywanie rozbieżności. Nie wchodzi: samo wyliczenie bilansu — to konsumuje
   jest pusta — subworkflow nie ma nic do dopasowania (no-op, nie błąd).
 - Tolerancja kwoty dopasowania (np. ± 5%) — do ustalenia z użytkownikiem lub
   jako konfigurowalny parametr.
-- Czy koszty stałe mogą się różnić między kontem prywatnym a firmowym w tej
-  samej tabeli, czy to dwie oddzielne listy — zakładam, że `FIXED_COSTS`
-  jest powiązane z `account_id` (do dodania do modelu, patrz
-  [[01-spec-data-model]]).
 
 ## Kryteria akceptacji / testy
 

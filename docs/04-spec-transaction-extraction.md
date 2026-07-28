@@ -65,9 +65,8 @@ etapie spec.
 
 - Konkretna biblioteka PDF do parsowania tekstu/tabel — ustalić przy
   implementacji po sprawdzeniu dokumentacji.
-- Lista banków w praktyce używanych (prywatne + firmowe konto) — nieznana
-  teraz; parsery dodawane iteracyjnie na podstawie realnych przykładów
-  wyciągów.
+- Lista banków w praktyce używanych (konto prywatne) — nieznana teraz;
+  parsery dodawane iteracyjnie na podstawie realnych przykładów wyciągów.
 - Czy `counterparty` da się wiarygodnie wyodrębnić z opisu transakcji dla
   każdego banku, czy zostanie połączony z `description` gdy nie da się
   rozdzielić.

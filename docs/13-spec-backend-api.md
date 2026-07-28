@@ -46,8 +46,6 @@ sekretów (SMTP, Drive, DB) w odpowiedziach API.
 - Czy backend wymaga własnego uwierzytelnienia (np. prosty API key/basic
   auth), skoro UI ma być lokalne/prywatne, czy wystarczy izolacja sieciowa
   w topologii Coolify.
-- Czy `POST /runs` ma wspierać wybór konkretnego konta
-  (private/company) czy zawsze oba na raz.
 
 ## Kryteria akceptacji / testy
 

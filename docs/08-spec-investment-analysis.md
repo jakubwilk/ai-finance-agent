@@ -51,9 +51,6 @@ domyślne założenie).
   (tekstowo/liczbowo w raporcie), a nie integrować się z żadnym
   maklerskim/bankowym API do wykonania operacji. Założenie robocze na razie:
   wyłącznie sugestia.
-- Czy rekomendacja różni się dla konta prywatnego i firmowego (inne zasady
-  prawne/podatkowe dla nadwyżki firmowej) — prawdopodobnie tak, do
-  potwierdzenia.
 
 ## Zależności
 

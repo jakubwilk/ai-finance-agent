@@ -18,7 +18,6 @@ flowchart LR
         BE[Backend FastAPI + LangGraph]
         FE[Frontend React]
         DB[(PostgreSQL)]
-        VOL[(Wolumen: pobrane PDF)]
     end
     OVH[Ollama na OVH]
     DRIVE[Google Drive API]
@@ -26,7 +25,6 @@ flowchart LR
 
     FE -->|HTTP| BE
     BE -->|SQL| DB
-    BE -->|volume mount| VOL
     BE -->|HTTP| OVH
     BE -->|HTTPS API| DRIVE
     BE -->|SMTP| SMTP
@@ -39,9 +37,9 @@ flowchart LR
   lub Next.js server, do ustalenia przy `init-frontend`).
 - **PostgreSQL** — dane domenowe + checkpointer LangGraph (patrz
   [[01-spec-data-model]]).
-- **Wolumen trwały** — przechowywanie pobranych plików PDF wyciągów
-  (potrzebny, żeby nie utracić plików źródłowych przy restarcie
-  kontenera).
+- **Brak wolumenu na PDF-y** — pobrane wyciągi nie są trwale
+  przechowywane; Drive jest jedynym źródłem prawdy, pliki pobierane
+  on-demand po `drive_file_id` (patrz [[02-spec-google-drive-ingestion]]).
 - **Ollama (OVH)** — zewnętrzny, nie hostowany w tym samym Coolify
   (potwierdzone przez użytkownika: „na dysku OVH są ollamy”) — backend
   łączy się przez sieć do endpointu OVH.
@@ -52,9 +50,9 @@ flowchart LR
 |---|---|
 | `DATABASE_URL` | connection string PostgreSQL |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | wysyłka raportów, patrz [[10-spec-email-delivery]] |
-| `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN` | autoryzacja OAuth do Drive kontem osobistym, patrz [[02-spec-google-drive-ingestion]] |
+| `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN`, `GOOGLE_DRIVE_FOLDER_ID` | autoryzacja OAuth do Drive kontem osobistym + folder z wyciągami, patrz [[02-spec-google-drive-ingestion]] |
 | `OLLAMA_BASE_URL`, `OLLAMA_MODEL_CLASSIFICATION`, `OLLAMA_MODEL_INVESTMENT`, `OLLAMA_MODEL_REPORTING`, `OLLAMA_API_KEY` | endpoint i modele OVH, patrz [[12-spec-llm-integration-ollama]] |
-| `REPORT_RECIPIENT_EMAIL_PRIVATE`, `REPORT_RECIPIENT_EMAIL_COMPANY` | adresaci raportów per konto, patrz [[10-spec-email-delivery]] |
+| `REPORT_RECIPIENT_EMAIL` | odbiorca raportów, patrz [[10-spec-email-delivery]] |
 
 Zgodnie z `CLAUDE.md`: wartości wyłącznie w `.env` / sekretach Coolify,
 nigdy w kodzie, commitach czy tej dokumentacji.
@@ -92,6 +90,6 @@ kodu każdego serwisu.
   środowisko (backend, frontend, DB) bez błędów.
 - Health-check wszystkich serwisów (`/health` z [[13-spec-backend-api]])
   zielony po starcie.
-- Test disaster-recovery: restart kontenera backendu nie gubi pobranych
-  plików PDF (wolumen trwały działa) ani stanu grafu (checkpointer w
-  Postgres przeżywa restart).
+- Test disaster-recovery: restart kontenera backendu nie gubi stanu grafu
+  (checkpointer w Postgres przeżywa restart) — pobrane pliki nie wymagają
+  osobnej ochrony, bo nie są trwale przechowywane poza Drive.

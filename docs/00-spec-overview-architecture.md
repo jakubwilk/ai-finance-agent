@@ -2,8 +2,8 @@
 
 ## Cel
 
-AI Finance Agent automatyzuje cotygodniowy proces analizy finansów prywatnych
-i firmowych: odbiera wyciągi bankowe wgrywane na Dysk Google, weryfikuje ich
+AI Finance Agent automatyzuje cotygodniowy proces analizy finansów prywatnych:
+odbiera wyciągi bankowe wgrywane na Dysk Google, weryfikuje ich
 poprawność, wyciąga z nich pozycje transakcyjne, kategoryzuje je, wylicza
 bilans (przychody/wydatki/nadwyżka), proponuje alokację nadwyżki na
 inwestycje i wysyła raport (tygodniowy oraz miesięczny) na maila. Całość ma
@@ -12,13 +12,12 @@ działać bez interakcji użytkownika poza wyjątkami wymagającymi jego decyzji
 
 ## Aktorzy i źródła danych
 
-- **Konto prywatne** i **konto firmowe** — dwa niezależne strumienie
-  wyciągów, każdy z osobną historią transakcji, ale wspólnym pipeline'em
-  przetwarzania (rozróżniane przez `account_type` w modelu danych, patrz
-  [[01-spec-data-model]]).
+- **Konto prywatne** — jedyne śledzone konto (patrz [[01-spec-data-model]]).
+  Wpływy z konta firmowego trafiają na prywatne jako zwykły przelew, więc
+  konto firmowe nie jest częścią tego systemu.
 - **Dysk Google** — jedyne źródło wejściowe wyciągów, wgrywanych ręcznie co
-  tydzień przez użytkownika do struktury `/Wyciągi/Prywatne` i
-  `/Wyciągi/Firmowe` (patrz [[02-spec-google-drive-ingestion]]).
+  tydzień przez użytkownika do jednego folderu, którego ID konfiguruje się w
+  `.env` (patrz [[02-spec-google-drive-ingestion]]).
 - **Tabela kosztów stałych** — dostarczona przez użytkownika później, patrz
   [[05-spec-fixed-costs]].
 - **Tabela kategorii** — dostarczona przez użytkownika później, patrz

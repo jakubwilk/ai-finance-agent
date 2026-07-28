@@ -9,7 +9,7 @@ rekomendacje inwestycyjne, oraz stan checkpointera LangGraph.
 ## Zakres
 
 Wchodzi: schemat tabel domenowych i ich relacje. Nie wchodzi: konkretna
-zawartość danych referencyjnych (kategorie, koszty stałe) — dostarczy je
+zawartość danych referencyjnych (konta, kategorie, koszty stałe) — dostarczy je
 użytkownik później; to jest tylko struktura, którą wypełnią. Zobacz niżej
 („Otwarte kwestie”) gdzie i jak ta rzeczywista zawartość będzie
 przechowywana — repo jest publiczne, więc to nie może być zwykły commitowany
@@ -35,14 +35,13 @@ erDiagram
     CATEGORIES ||--o{ TRANSACTIONS : "kategoryzuje"
     CATEGORIES ||--o{ FIXED_COSTS : "kategoryzuje"
     FIXED_COSTS ||--o{ TRANSACTIONS : "dopasowuje (opcjonalnie)"
-    ACCOUNTS ||--o{ REPORTS : "dotyczy"
     REPORTS ||--o{ INVESTMENT_RECOMMENDATIONS : "zawiera"
 
     ACCOUNTS {
         uuid id PK
-        text account_type "private | company"
         text display_name
         text bank_name
+        timestamptz last_synced_at "kursor synchronizacji ingestion, NULL do pierwszego przebiegu"
         timestamptz created_at
     }
 
@@ -52,10 +51,10 @@ erDiagram
         text drive_file_id "unikalny identyfikator pliku z Drive"
         text file_name
         text checksum "sha256 pobranego pliku"
-        date period_start
-        date period_end
-        numeric opening_balance
-        numeric closing_balance
+        date period_start "nullable do czasu verification pre-check"
+        date period_end "nullable do czasu verification pre-check"
+        numeric opening_balance "nullable do czasu verification pre-check"
+        numeric closing_balance "nullable do czasu verification pre-check"
         text status "pending | verified | failed | processed"
         text failure_reason
         timestamptz ingested_at
@@ -93,7 +92,6 @@ erDiagram
 
     REPORTS {
         uuid id PK
-        uuid account_id FK "nullable jeśli raport łączony"
         text report_type "weekly | monthly"
         date period_start
         date period_end
@@ -115,6 +113,11 @@ erDiagram
 
 ## Uwagi projektowe
 
+- `ACCOUNTS` trzyma dokładnie jeden wiersz — agent śledzi wyłącznie jedno,
+  prywatne konto (zdecydowane z użytkownikiem; przelewy z konta firmowego
+  trafiają na prywatne jako zwykły wpływ, więc firmowe nie jest częścią tego
+  systemu). Stąd brak kolumny "typu" konta i brak `account_id` na `REPORTS`
+  (jest tylko jedno konto, więc nic nie trzeba rozróżniać).
 - `TRANSACTIONS.category_id` jest nullable — pipeline musi działać nawet
   zanim kategoryzacja się zakończy (patrz [[06-spec-categorization]]).
 - `CATEGORIES.score` jest zarezerwowany pod przyszłą analizę (np. podział
@@ -134,32 +137,30 @@ erDiagram
 
 Używane przez niemal wszystkie pozostałe specyfikacje (02–11).
 
-## Otwarte kwestie
-
-- Czy raporty mają być zawsze rozdzielone per `account_type`, czy też ma
-  istnieć zbiorczy raport prywatne+firmowe — do ustalenia przy
-  [[09-spec-reporting]].
-
-## Przechowywanie realnej zawartości `CATEGORIES` i `FIXED_COSTS`
+## Przechowywanie realnej zawartości `ACCOUNTS`, `CATEGORIES` i `FIXED_COSTS`
 
 **Zdecydowane** (repo jest publiczne na GitHubie, więc te dane — nazwy
-kategorii, kwoty kosztów stałych, kontrahenci — nie mogą trafić do gita jako
-zwykłe pliki):
+banków/kont, kategorii, kwoty kosztów stałych, kontrahenci — nie mogą
+trafić do gita jako zwykłe pliki):
 
-- Realne wartości żyją wyłącznie w plikach `data/local/categories.json` i
-  `data/local/fixed_costs.json`, objętych `.gitignore` (nigdy nie trafiają do
-  repozytorium).
-- Struktura JSON odzwierciedla pola z ER diagramu wyżej: `CATEGORIES` →
-  `name`, `score` (0-100, wymagane), `type`; `FIXED_COSTS` → `name`,
-  `category` (odwołanie po nazwie kategorii, nie po `uuid`),
+- Realne wartości żyją wyłącznie w plikach `data/local/accounts.json`,
+  `data/local/categories.json` i `data/local/fixed_costs.json`, objętych
+  `.gitignore` (nigdy nie trafiają do repozytorium).
+- Struktura JSON odzwierciedla pola z ER diagramu wyżej: `ACCOUNTS` →
+  tablica z co najwyżej jednym elementem (`display_name`, `bank_name` —
+  jedno śledzone konto, patrz „Uwagi projektowe” wyżej); `CATEGORIES` →
+  `name`, `score` (0-100, wymagane), `type`; `FIXED_COSTS` →
+  `name`, `category` (odwołanie po nazwie kategorii, nie po `uuid`),
   `expected_amount`, `frequency`.
-- W repo commitowane są tylko szablony `data/local/categories.example.json` i
-  `data/local/fixed_costs.example.json` z fikcyjnymi wartościami — pokazują
-  kształt danych, nie realną zawartość.
-- Przy implementacji backendu powstanie skrypt seedujący, który wczytuje te
-  pliki JSON i zapisuje je do Postgresa (mapowanie `category` → `category_id`
-  po nazwie). Ten skrypt jeszcze nie istnieje — kod projektu jeszcze nie
-  powstał.
+- W repo commitowane są tylko szablony `data/local/accounts.example.json`,
+  `data/local/categories.example.json` i `data/local/fixed_costs.example.json`
+  z fikcyjnymi wartościami — pokazują kształt danych, nie realną zawartość.
+- Skrypt seedujący (`backend/scripts/seed_reference_data.py`) wczytuje te
+  pliki JSON i zapisuje je do Postgresa idempotentnie (konto: dopasowanie do
+  jedynego istniejącego wiersza `ACCOUNTS`, błąd jeśli `accounts.json` ma
+  więcej niż jeden wpis; kategorie/koszty stałe: dopasowanie po `name`;
+  `FIXED_COSTS.category` mapowane na `category_id` po nazwie kategorii) —
+  bezpieczny do wielokrotnego uruchamiania.
 - Sekrety (API keys, hasła) to osobna kategoria, patrz reguła 6 w
   `CLAUDE.md` — ta sekcja dotyczy danych osobistych/finansowych, nie
   credentiali.
