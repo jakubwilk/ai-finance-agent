@@ -53,8 +53,8 @@ erDiagram
         text checksum "sha256 pobranego pliku"
         date period_start "nullable do czasu verification pre-check"
         date period_end "nullable do czasu verification pre-check"
-        numeric opening_balance "nullable do czasu verification pre-check"
-        numeric closing_balance "nullable do czasu verification pre-check"
+        numeric opening_balance "nullable do czasu ekstrakcji (krok 04)"
+        numeric closing_balance "nullable do czasu ekstrakcji (krok 04)"
         text status "pending | verified | failed | processed"
         text failure_reason
         timestamptz ingested_at
@@ -73,6 +73,7 @@ erDiagram
         text category_source "rule | llm | manual"
         numeric category_confidence
         text review_status "auto | needs_review | confirmed"
+        jsonb raw_details "pola z Opis/Typ transakcji poza description/counterparty, patrz [[04-spec-transaction-extraction]]"
     }
 
     CATEGORIES {

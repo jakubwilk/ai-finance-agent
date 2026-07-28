@@ -59,9 +59,13 @@ wydajnościowego.
 4. `persist_metadata` — insert do `STATEMENTS` (`account_id` na podstawie
    folderu źródłowego, `status = pending`). `period_start`/`period_end`/
    `opening_balance`/`closing_balance` pozostają `NULL` na tym etapie —
-   ingestion nie parsuje treści PDF-a; te pola uzupełnia dopiero
-   `extract_header_footer_balances` w kroku 2 weryfikacji ([[03-spec-statement-verification]]),
-   stąd te kolumny są nullable w [[01-spec-data-model]].
+   ingestion nie parsuje treści PDF-a. `period_start`/`period_end` uzupełnia
+   dopiero `read_statement` w pre-checku weryfikacji
+   ([[03-spec-statement-verification]]); `opening_balance`/
+   `closing_balance` — dopiero ekstrakcja ([[04-spec-transaction-extraction]]),
+   bo realny format wyciągu (patrz korekta w docs/03) nie ma drukowanego
+   salda gdzie indziej niż w tabeli transakcji. Stąd te kolumny są nullable
+   w [[01-spec-data-model]].
 5. `update_sync_cursor` — zapis nowego `last_synced_at`.
 
 ## Autoryzacja do Drive (zdecydowane)
