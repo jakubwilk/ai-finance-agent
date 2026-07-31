@@ -1,0 +1,7 @@
+[
+  {
+    "risk_profile": "balanced",
+    "safety_buffer_amount": 10000.00,
+    "instruments": ["etf", "term_deposit", "savings_account"]
+  }
+]

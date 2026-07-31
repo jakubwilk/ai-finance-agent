@@ -264,37 +264,299 @@ _Checklisty: `[ ]` = do zrobienia, `[x]` = zrobione — odznaczać w miarę post
    — prawdziwe przebiegi interrupt/resume przez `InMemorySaver`, bez
    realnego wywołania OVH API.
 
-7. [ ] **Fixed costs reconciliation** — [`05-spec-fixed-costs`](docs/05-spec-fixed-costs.md):
-   dopasowanie do okresu bieżącego wyciągu, flagowanie rozbieżności.
+7. [x] **Fixed costs reconciliation** — [`05-spec-fixed-costs`](docs/05-spec-fixed-costs.md):
+   dopasowanie do okresu bieżącego wyciągu, flagowanie rozbieżności. Zrobione:
+   `subgraphs/fixed_costs/{state,nodes,graph}.py` — 4 węzły (`load_fixed_costs`,
+   `match_transactions`, `flag_discrepancies`, `persist_reconciliation`), ten
+   sam wzorzec DI co pozostałe subgrafy, bez `drive_client` (czysta logika
+   DB). **Decyzje z użytkownikiem** (docs/05 miało to jawnie otwarte): sygnał
+   dopasowania to `Transaction.category_id == FixedCost.category_id`
+   (kategoryzacja działa zawsze przed tym krokiem), nie fuzzy-matching po
+   kontrahencie/opisie; tolerancja kwoty **5% `expected_amount`**, stała w
+   kodzie (`AMOUNT_TOLERANCE_RATIO`), nie parametr konfiguracyjny; „bieżący
+   wyciąg” = pojedynczy `Statement` o najpóźniejszym `period_end` wśród
+   `status == "processed"` (jedno konto, wyciągi tygodniowe). Doprecyzowanie
+   przy implementacji: tolerancja decyduje o klasyfikacji rozbieżności
+   (`matched` vs `amount_changed`), nie o tym, czy dopasowanie w ogóle
+   istnieje — inaczej transakcja o mocno zmienionej kwocie nigdy nie
+   zostałaby powiązana ze swoim kosztem stałym i błędnie wyglądałaby jak
+   `missing_payment`. Nowa kolumna `TRANSACTIONS.matched_fixed_cost_id`
+   (nullable FK do `fixed_costs.id`, migracja `eccfb86a2bf4`) — jedyna
+   trwała dana z reconciliation; sama lista rozbieżności jest efemeryczna
+   (zwracana przez subgraph, konsumowana w tym samym przebiegu master grafu
+   przez kroki 8/10, jeszcze niezaimplementowane), bez osobnej tabeli — nie
+   ma jeszcze czytelnika, który wymagałby jej trwałości. W przeciwieństwie do
+   `categorization` (krok 6, celowo niepodpięty — czeka na checkpointer z
+   kroku 12), ten krok nie ma `interrupt()`/human-in-the-loop, więc
+   `fixed_costs_reconciliation` **jest już podpięty** do `master.py`
+   (`_fixed_costs_reconciliation_node`, ten sam kształt
+   sesja/commit-lub-rollback co `_verification_post_check_node`), wyjęty z
+   pętli placeholderów. Testy: `tests/test_fixed_costs_graph.py` — dopasowanie
+   w tolerancji, `missing_payment` (brak kandydata w kategorii),
+   `amount_changed` (dopasowany, ale poza tolerancją, `matched_fixed_cost_id`
+   mimo to ustawione), pusta tabela `FIXED_COSTS` (no-op), brak wyciągu
+   `processed` (no-op), dwa koszty stałe w jednej kategorii dopasowane do
+   różnych transakcji (brak podwójnego przypisania). `tests/test_master_graph.py`
+   zaktualizowany o wstrzykiwany placeholder dla nowego realnego węzła w
+   testach behawioralnych (sync `.invoke()`).
 
-8. [ ] **Cashflow calculation** — [`07-spec-cashflow-calculation`](docs/07-spec-cashflow-calculation.md):
-   agregacja, breakdown per kategoria, surplus, narastający miesiąc.
+8. [x] **Cashflow calculation** — [`07-spec-cashflow-calculation`](docs/07-spec-cashflow-calculation.md):
+   agregacja, breakdown per kategoria, surplus, narastający miesiąc. Zrobione:
+   `subgraphs/cashflow/{state,nodes,graph}.py` — 5 węzłów
+   (`aggregate_income_expense`, `breakdown_by_category`,
+   `apply_fixed_costs_status`, `compute_surplus`, `compute_rolling_month`),
+   ten sam wzorzec DI co pozostałe subgrafy, bez `drive_client`.
+   **Decyzje z użytkownikiem** (docs/07 miało to jawnie otwarte):
+   transakcje `needs_review` **wliczone** do bilansu wg tymczasowej kategorii
+   z LLM, z osobnym `needs_review_count` do ostrzeżenia w przyszłym raporcie
+   (krok 10); „bieżący wyciąg" = ten sam koncept co w kroku 7 (najpóźniejszy
+   `Statement.period_end` wśród `status == "processed"`), nie ISO tydzień
+   kalendarzowy. `apply_fixed_costs_status` **nie** powtarza dopasowania z
+   kroku 7 — czyta już zapisane `Transaction.matched_fixed_cost_id`, tylko
+   klasyfikuje `matched`/`amount_changed` tą samą stałą tolerancji
+   `AMOUNT_TOLERANCE_RATIO` (reużyta z `subgraphs/fixed_costs/nodes.py`, nie
+   zduplikowana). `compute_rolling_month` liczy narastająco od pierwszego
+   dnia miesiąca `Statement.period_end` do tego `period_end`, po
+   `Transaction.txn_date` przez wszystkie wyciągi `processed` w tym
+   miesiącu (nie tylko bieżący) — bez zależności od zegara systemowego
+   (`datetime.now()`), spójne z resztą pipeline'u. Ten sam wzorzec co krok 7:
+   wynik efemeryczny (zwracany przez subgraph, konsumowany w tym samym
+   przebiegu master grafu przez kroki 9/10, jeszcze niezaimplementowane),
+   bez osobnej tabeli — nie ma jeszcze czytelnika, który wymagałby jej
+   trwałości. Bez `interrupt()`/human-in-the-loop, więc
+   `cashflow_calculation` **jest już podpięty** do `master.py`
+   (`_cashflow_calculation_node`, ten sam kształt sesja/commit-lub-rollback
+   co pozostałe realne węzły), wyjęty z pętli placeholderów. Testy:
+   `tests/test_cashflow_graph.py` — sumy przychodów/wydatków, breakdown per
+   kategoria (w tym `Nieskategoryzowane`, nic nie ginie z sumy), wliczenie i
+   zliczenie `needs_review`, wszystkie 3 statusy kosztów stałych, surplus,
+   narastający miesiąc na dwóch wyciągach (weekly widzi tylko bieżący,
+   rolling_month oba), brak wyciągu `processed` (no-op). `tests/test_master_graph.py`
+   zaktualizowany o wstrzykiwany placeholder dla nowego realnego węzła w
+   testach behawioralnych (sync `.invoke()`).
 
-9. [ ] **Investment analysis** — [`08-spec-investment-analysis`](docs/08-spec-investment-analysis.md):
-   `check_safety_buffer` → `assess_trend` → `generate_allocation_proposal`.
-   *Blokujące: profil ryzyka użytkownika, lista dostępnych instrumentów
-   inwestycyjnych, wielkość poduszki bezpieczeństwa — wszystkie jawnie
-   otwarte w specyfikacji.*
+9. [x] **Investment analysis** — [`08-spec-investment-analysis`](docs/08-spec-investment-analysis.md):
+   `check_safety_buffer` → `assess_trend` → `generate_allocation_proposal` →
+   `persist_recommendation`. Było blokujące (profil ryzyka, instrumenty,
+   poduszka bezpieczeństwa) — **rozstrzygnięte z użytkownikiem**: profil
+   zbalansowany; instrumenty ETF/lokaty/konto oszczędnościowe (nie obligacje
+   skarbowe, nie IKE/IKZE); poduszka jako stała kwota PLN; agent wyłącznie
+   sugeruje (jawna decyzja bezpieczeństwa, zero integracji z API
+   maklerskim/bankowym). Zrobione:
+   `subgraphs/investment/{state,nodes,graph}.py` — 4 węzły, ten sam wzorzec
+   DI co pozostałe subgrafy. **Dwie realne luki w schemacie**, załatane po
+   drodze: (1) brak trwałego miejsca na profil ryzyka/poduszkę/instrumenty —
+   nowa tabela `INVESTMENT_SETTINGS` (pojedynczy wiersz, ten sam wzorzec co
+   `ACCOUNTS`), realna zawartość w gitignorowanym
+   `data/local/investment_settings.json` (`.example.json` skomitowany),
+   `seed_reference_data.py` rozszerzony o `upsert_investment_settings`;
+   (2) `INVESTMENT_RECOMMENDATIONS.report_id` było `NOT NULL`, ale
+   `investment_analysis` biegnie przed `reporting` w master grafie — kolumna
+   stała się nullable (migracja `0634c426bfc5`), `persist_recommendation`
+   zapisuje z `report_id=NULL`, krok 10 uzupełni później (ten sam wzorzec co
+   nullable pola `Statement` z kroku 1). W przeciwieństwie do kroków 7/8
+   (efemeryczny wynik, brak czytelnika) — `INVESTMENT_RECOMMENDATIONS` ma
+   dedykowaną tabelę od kroku 0, więc zapis do bazy jest tu poprawny, nie
+   przedwczesny. `check_safety_buffer`: `investable_amount = min(surplus,
+   max(closing_balance - safety_buffer_amount, 0))`, zero gdy surplus ≤ 0
+   (bez wywołania LLM). `assess_trend`: `TREND_LOOKBACK_PERIODS = 4`,
+   `ANOMALY_MULTIPLIER = 2` (dobór implementacyjny — spec nie precyzowała
+   liczby, tylko „kilka ostatnich okresów”); mniej niż 2 wyciągi w historii →
+   `insufficient_history`, brak korekty. `generate_allocation_proposal`:
+   `chat_model.with_structured_output(AllocationResult,
+   method="function_calling")` ze stałym schematem (nie dynamiczny słownik —
+   bezpieczniej dla function-calling), fallback na równy podział przy
+   błędzie LLM/nieprawidłowej sumie procentów (ten sam „nie wywalaj batcha”
+   wzorzec co `categorization`'s `llm_classify`). Mały refaktor przy okazji:
+   `compute_income_and_expense` wydzielone z `subgraphs/cashflow/nodes.py`
+   (było zduplikowane między `aggregate_income_expense`/
+   `compute_rolling_month`), reużyte też tutaj — ten sam wzorzec
+   cross-subgraph reuse co `AMOUNT_TOLERANCE_RATIO`. Bez `interrupt()`, więc
+   `investment_analysis` **jest już podpięty** do `master.py`, wyjęty z
+   pętli placeholderów. Testy: `tests/test_investment_graph.py` — poduszka
+   wiążąca/niewiążąca, surplus ≤ 0 pomija LLM, anomalia ogranicza kwotę do
+   średniej historycznej, `insufficient_history`, prawidłowy podział z LLM,
+   fallback przy błędzie LLM, brak `InvestmentSettings` (no-op), zapis
+   rekomendacji z `report_id=NULL`. `tests/test_master_graph.py`/
+   `tests/test_db_schema.py`/`tests/test_seed_reference_data.py`
+   zaktualizowane.
 
-10. [ ] **Reporting** — [`09-spec-reporting`](docs/09-spec-reporting.md):
-    renderowanie treści raportu tygodniowego/miesięcznego (HTML).
+10. [x] **Reporting** — [`09-spec-reporting`](docs/09-spec-reporting.md):
+    renderowanie treści raportu tygodniowego/miesięcznego (HTML). Zrobione:
+    `subgraphs/reporting/{state,nodes,graph}.py` + `templates/{weekly,monthly}.html.jinja`
+    — 4 węzły, ten sam wzorzec DI co pozostałe subgrafy. **Decyzje z
+    użytkownikiem** (docs/09 miało to jawnie otwarte): wizualizacja jako
+    same tabele HTML (bez pasków CSS/wykresów — najbezpieczniejsze między
+    klientami mailowymi); dodana nowa zależność **Jinja2** (`uv add jinja2`,
+    zatwierdzona przed dodaniem, ten sam tryb co `pdfplumber`/
+    `langchain-openai` wcześniej). Język raportu: polski, potwierdzone przez
+    istniejącą konwencję (nie trzeba było pytać ponownie). **Realny problem
+    architektoniczny rozwiązany:** kroki 08/09 (cashflow/investment)
+    celowo zostawiły swój wynik efemerycznym (brak czytelnika w momencie
+    ich implementacji) — `render_weekly` odzyskuje te dane wywołując
+    `build_cashflow_graph(session).ainvoke(...)` bezpośrednio (ten sam
+    subgraph co krok 08, użyty jako czarna skrzynka, nie zduplikowana
+    logika — tanie, bo to czysta arytmetyka bez zapisów) i odczytując
+    najnowszy `INVESTMENT_RECOMMENDATIONS` z `report_id IS NULL`.
+    Odrzucona alternatywa: przepływ danych przez `MasterGraphState` — byłby
+    niespójny z resztą repo (każdy subgraph sam odtwarza swoje wejście z
+    bazy). `persist_report` zamyka pętlę z kroku 09: uzupełnia
+    `INVESTMENT_RECOMMENDATIONS.report_id` (nullable od tamtego kroku) na
+    wiersz raportu tygodniowego — **znane, zaakceptowane ograniczenie**:
+    jeśli reporting zawiedzie w danym tygodniu, tylko najnowsza
+    niepodłączona rekomendacja zostaje podłączona następnym razem, starsze
+    osierocone zostają z `report_id = NULL` na stałe (brak utraty danych,
+    tylko niekompletne powiązanie). „Koniec miesiąca” zdecydowany jako
+    `period_end` w ostatnich 7 dniach swojego miesiąca
+    (`MONTH_END_WINDOW_DAYS`, implementacyjny dobór jak
+    `TREND_LOOKBACK_PERIODS`/`ANOMALY_MULTIPLIER` z kroku 09 — spec nie
+    precyzowała dokładnego testu). Porównanie z poprzednim miesiącem: jedyne
+    naprawdę nowe zapytanie w tym kroku, reużywa `compute_income_and_expense`
+    z `cashflow/nodes.py` (ten sam wzorzec cross-subgraph reuse co
+    `AMOUNT_TOLERANCE_RATIO`). Bez `interrupt()`, więc `reporting` **jest już
+    podpięty** do `master.py`, wyjęty z pętli placeholderów. `build_reporting_model()`
+    (zbudowany w kroku 05) zostaje nieużyty — nic w spec nie wymaga
+    reasoningu LLM na tym etapie, tylko wypełnianie szablonu; dostępny na
+    przyszłość. Testy: `tests/test_reporting_graph.py` — treść raportu
+    tygodniowego (sumy, breakdown), brak nadwyżki (bez rekomendacji i z
+    rekomendacją o kwocie zero — oba pokazują komunikat), lista
+    `needs_review` (obecna/pominięta), koniec miesiąca generuje dodatkowy
+    raport z poprawnym porównaniem, środek miesiąca nie generuje raportu
+    miesięcznego, zapis `REPORTS` + backfill `report_id`, brak wyciągu
+    `processed` (no-op). `tests/test_master_graph.py` zaktualizowany.
 
-11. [ ] **Email delivery** — [`10-spec-email-delivery`](docs/10-spec-email-delivery.md):
-    wysyłka SMTP + ścieżka natychmiastowego alertu. Format zmiennych
-    ustalony (`SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD`,
-    `REPORT_RECIPIENT_EMAIL_PRIVATE`/`REPORT_RECIPIENT_EMAIL_COMPANY`).
-    *Blokujące: konkretne wartości — do uzupełnienia przez użytkownika w
-    `.env`.*
+11. [x] **Email delivery** — [`10-spec-email-delivery`](docs/10-spec-email-delivery.md):
+    wysyłka SMTP + ścieżka natychmiastowego alertu. Format zmiennych już
+    ustalony (`SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD`/
+    `REPORT_RECIPIENT_EMAIL`, pojedyncze — bez podziału private/company,
+    usuniętego w kroku 1). Oznaczone jako blokujące na realnych wartościach
+    w `.env` — **ale sprawdzenie precedensu z kroków 1/5 (`GOOGLE_OAUTH_*`,
+    `OVH_AI_ENDPOINTS_*` też puste, a te kroki i tak w pełni zbudowane i
+    przetestowane z fake'ami) pokazało, że puste `.env` nie blokuje budowy
+    ani testów — tylko realne uruchomienie.** Zrobione:
+    `subgraphs/email_delivery/{smtp_client,state,nodes,graph}.py` — 3 węzły
+    subgraphu (`render_final_payload`, `send_smtp`, `handle_result`) dla
+    kolejki `REPORTS` `pending`, ten sam wzorzec DI co `GoogleDriveClient`
+    (`SmtpClient` przyjmuje gotowe połączenie, `build_smtp_client(settings)`
+    czytelny błąd przy brakującej zmiennej). **Nowa zależność, zatwierdzona:**
+    `aiosmtplib` (`uv add aiosmtplib`), sprawdzona w dokumentacji przed
+    użyciem, nie z pamięci. Retry (otwarta kwestia w spec, "np. 3"):
+    **przyjęte wprost jako 3 próby** z rosnącym odstępem — parametr
+    techniczny/operacyjny, nie fakt o użytkowniku, ten sam tryb co
+    `BALANCE_TOLERANCE` w kroku 2. **`alert_immediate` — nie subgraph:**
+    diagram w `docs/11` rysuje go jako pojedynczy węzeł master grafu, nie
+    zagnieżdżony `StateGraph` — zaimplementowany bezpośrednio jako
+    `_alert_immediate_node`/`_build_alert_message` (czysta, testowalna
+    funkcja bez zależności od SMTP/`Settings`) w `graph/master.py`, bez
+    sesji DB (nic nie zapisuje). Treść błędu bierze z nowego pola
+    `MasterGraphState.alert_details` (statement_id + failure_reason),
+    wypełnianego przez `_verification_pre_check_node`/
+    `_verification_post_check_node` przy niepowodzeniu — ta sama zasada co
+    już istniejące `verification_ok`/`needs_review` (dane "wyniku tego
+    przebiegu", nie nowa kolumna/tabela "już zaalarmowano"). Bez
+    `interrupt()`, więc oba węzły **są już podpięte** do `master.py`,
+    wyjęte z pętli placeholderów — jedyny wciąż niepodpięty krok to
+    `categorization`/`human_review` (czeka na checkpointer, krok 12).
+    Testy: `tests/test_email_delivery_graph.py` (sukces, trwały błąd po 3
+    próbach bez niezłapanego wyjątku, retry-potem-sukces, zbiera tylko
+    `pending`, no-op, temat maila zawiera typ/zakres dat raportu),
+    `tests/test_alert_immediate.py` (`_build_alert_message` z jednym i
+    wieloma błędami). `tests/test_master_graph.py` zaktualizowany
+    (placeholdery dla `EMAIL_DELIVERY`/`ALERT_IMMEDIATE`, `alert_details`
+    w stanie startowym).
 
-12. [ ] **Master orchestration graph + scheduling** — [`11-spec-orchestration-scheduling`](docs/11-spec-orchestration-scheduling.md):
+12. [x] **Master orchestration graph + scheduling** — [`11-spec-orchestration-scheduling`](docs/11-spec-orchestration-scheduling.md):
     złożenie subgraphów 1–11 w master `StateGraph`, checkpointer Postgres,
-    schemat `thread_id`, cron tygodniowy, logika raportu miesięcznego.
+    schemat `thread_id`. **Najważniejsze: wreszcie podpięty `categorization`**
+    (zbudowany w pełni w kroku 6, celowo niepodpięty do teraz — czekał
+    dokładnie na to, co ten krok dostarcza). **Nowa zależność, zatwierdzona:**
+    `langgraph-checkpoint-postgres` + `psycopg[binary]` (nie goły `psycopg`
+    — zweryfikowane bezpośrednio: bez `binary` import failuje brakiem
+    systemowego `libpq` na tej maszynie). **Realne odkrycie architektoniczne**
+    (zweryfikowane w dokumentacji/źródłach LangGraph, nie zgadywane):
+    `CategorizationState` nie ma wspólnych pól z `MasterGraphState`, więc
+    nie może być zamontowany przez dosłowne `add_node(nazwa,
+    skompilowany_subgraph)` (LangGraph scala tylko nakładające się klucze).
+    Rozwiązanie: `_categorization_node` to zwykła funkcja-węzeł (ten sam
+    wzorzec co `_fixed_costs_reconciliation_node` i inne), która sama
+    otwiera sesję i woła `build_categorization_graph(...).ainvoke(...)` bez
+    własnego checkpointera — dziedziczy checkpointer aktywnego przebiegu, a
+    `interrupt()` wewnątrz `human_review` i tak poprawnie zatrzymuje **cały**
+    master graf (empirycznie potwierdzone syntetycznym testem, nie tylko
+    wyczytane z dokumentacji). **Realna konsekwencja:** master-poziomowy
+    `HUMAN_REVIEW` (węzeł + `_route_after_categorization` +
+    `MasterGraphState.needs_review`) **usunięte** — szkic sprzed
+    zbudowania prawdziwego subgraphu; `CAT → FIX` jest teraz bezwarunkowa
+    (krok 8 już zdecydował, że `needs_review` wchodzi do bilansu z
+    ostrzeżeniem, pipeline nie czeka). `docs/11`'s diagram zaktualizowany.
+    Zrobione: `graph/checkpointer.py` (`build_checkpointer`,
+    `psycopg_dsn_from_database_url` — psycopg nie zna dialektu
+    `+asyncpg`), `scripts/setup_checkpointer.py` (jednorazowe `.setup()`,
+    nigdy przy starcie aplikacji), `graph/runner.py`
+    (`generate_weekly_thread_id` — ISO tydzień, `run_master_graph` —
+    punkt wejścia "logiki wyzwalania", gotowy dla kroku 13/15).
+    **Windows-specific, zweryfikowane bezpośrednio:** `psycopg`'s tryb
+    async nie działa z domyślnym `ProactorEventLoop` — `WindowsSelectorEventLoopPolicy`
+    ustawiona w skrypcie i `tests/conftest.py` (bezpieczne też dla
+    `asyncpg`). `build_categorization_graph`'s `checkpointer` param
+    rozluźniony do opcjonalnego (był wymagany) — bez zmian w istniejących
+    testach. Testy: `tests/test_master_graph_categorization.py` —
+    **świadomie syntetyczny** (bez realnej bazy/subgraphu kategoryzacji):
+    `_categorization_node` jest sztywno wpięty w `async_session_factory`
+    (baza deweloperska, tak jak każdy inny realny węzeł) — nie ma jeszcze
+    DI do `TEST_DATABASE_URL`, więc test dowodzi samego **mechanizmu**
+    zagnieżdżenia (nested `.ainvoke()` bez `add_node` i tak poprawnie
+    propaguje `interrupt()`/`Command(resume=...)`/`get_state_history` do
+    grafu zewnętrznego) na minimalnym syntetycznym grafie — logika
+    biznesowa kategoryzacji ma już pełne pokrycie w
+    `tests/test_categorization_graph.py`. Pełne testy integracyjne z realną
+    bazą czekają na DI sesji per-request z kroku 13. `tests/test_checkpointer.py`
+    (integracyjny, realny Postgres, pomijany jeśli `TEST_DATABASE_URL`
+    nieosiągalny) — DSN transform, `.setup()` faktycznie tworzy tabele.
+    `tests/test_master_graph.py` zaktualizowany (usunięty test
+    `needs_review`/`human_review`, `categorization_node` teraz też
+    wstrzykiwalny placeholder jak każdy inny).
 
-13. [ ] **Backend API** — [`13-spec-backend-api`](docs/13-spec-backend-api.md):
+13. [x] **Backend API** — [`13-spec-backend-api`](docs/13-spec-backend-api.md):
     FastAPI opakowujący gotowy master graph, pełna tabela endpointów.
-    *Uwaga: minimalny stub (`/health`, statyczny `/graph/structure`) można
-    zbudować już w kroku 0, żeby odblokować Plan B — patrz sekcja
-    „Zależność między planami” wyżej.*
+    **Domyka lukę testową z kroku 12** ("pełne testy integracyjne czekają
+    na DI sesji per-request z kroku 13") — dokładnie to dostarczone tutaj.
+    **Zdecydowane z użytkownikiem:** uwierzytelnienie prostym API key
+    (`BACKEND_API_KEY`, nagłówek `X-API-Key`), nie brak-uwierzytelnienia,
+    nie basic auth — jedyna otwarta kwestia z docs/13. **Kontrakt 1:1 z
+    już istniejącym frontendem** (Plan B krok 1, zbudowany wcześniej na
+    mocku): `frontend/src/modules/common/models/api.ts`/`api/client.ts` —
+    nie projektowany od nowa, tylko odwzorowany (camelCase JSON przez
+    `pydantic.alias_generators.to_camel`). **Realne odkrycie
+    architektoniczne:** checkpointer LangGraph nie ma API "wylistuj
+    wszystkie thread_id" (sprawdzone w źródłach/forum LangGraph) i nie
+    reprezentuje stanu `failed` (nieobsłużony wyjątek nie tworzy
+    checkpointa) — stąd nowa, lekka tabela `RUNS` (migracja `f0e0bc389b71`),
+    celowo osobna od tabel checkpointera. `StateSnapshot`/`graph.get_graph()`'s
+    dokładny kształt (`interrupts: tuple[Interrupt(value, id)]`,
+    `Node(id, name, data, metadata)`, `Edge(source, target, data,
+    conditional)`) zweryfikowany przez introspekcję zainstalowanego
+    `langgraph`, nie z pamięci. Zrobione: `finance_agent/api/{dependencies,
+    schemas,routes,app}.py` — 8 endpointów z tabeli w docs/13 + `GET
+    /categories` (poza tabelą, ale konsumowany przez frontend). **DI
+    dodane do `graph/runner.py`**: `run_master_graph` zyskało
+    `session_factory`/`checkpointer_factory`/`graph_factory` (domyślnie
+    realne, nadpisywalne w testach) — ten sam DI seam co
+    `api/dependencies.py`'s `get_db_session`/`get_checkpointer`/
+    `get_run_trigger`, oba rozwiązują dokładnie problem zostawiony
+    otwartym w kroku 12. `upsert_run_status` wydzielone jako publiczna,
+    reużywalna funkcja (używana i przez `run_master_graph`, i przez `POST
+    /runs`). Nowa zależność: `fastapi`/`uvicorn`/`httpx` (już ustalone w
+    `CLAUDE.md`/docs/13 jako framework — nie otwarta decyzja jak
+    poprzednie biblioteki). Testy: `tests/test_runs_repository.py` (status
+    `RUNS` na sukces/błąd/przerwanie/wznowienie, z prawdziwym
+    `interrupt()`/`Command(resume=...)` przez `InMemorySaver` i
+    placeholderowym master grafem — bez dotykania bazy dev/realnego
+    Postgresa/OVH/SMTP), `tests/test_api.py` (`httpx.AsyncClient` +
+    `ASGITransport`, `dependency_overrides` na bazę testową — 11
+    przypadków: struktura grafu, kategorie, trigger+lista, 404 dla
+    nieznanych wątków, resume, health, uwierzytelnienie brak/złe/poprawne
+    API key).
 
 14. [ ] **Deployment** — [`15-spec-deployment-coolify`](docs/15-spec-deployment-coolify.md):
     Dockerfile'y, serwisy `docker-compose`/Coolify, zmienne środowiskowe,
@@ -338,6 +600,34 @@ _Checklisty: `[ ]` = do zrobienia, `[x]` = zrobione — odznaczać w miarę post
    (`MasterGraphState` w `backend/` to na razie szkielet) — do
    doprecyzowania przy Planie A kroku 13.
 
+   **Korekta po realnym podłączeniu do Planu A kroku 13:** wszystkie
+   strony pobierające dane (`GraphPage`/`RunsPage`/`RunDetailPage`/
+   `ReviewQueuePage`) to Client Components (`'use client'`, fetch w
+   `useEffect`) — `client.ts` nie ma własnego `'use client'`, ale skoro
+   importują go tylko komponenty kliencie, jego kod i tak leci do bundla
+   przeglądarki. Pierwsza wersja wpięcia realnego backendu wysyłała
+   `X-API-Key` (`require_api_key`, docs/13) wprost z przeglądarki przez
+   `NEXT_PUBLIC_BACKEND_API_KEY` — **błąd**, bo każda zmienna
+   `NEXT_PUBLIC_` ląduje w bundlu JS, więc klucz mający gate'ować dostęp
+   do backendu był w pełni widoczny w devtoolsach. Naprawione: nowy
+   Route Handler `frontend/src/app/api/backend/[...path]/route.ts` jako
+   same-origin proxy (wzorzec z oficjalnej dokumentacji Next.js —
+   `node_modules/next/dist/docs/01-app/02-guides/backend-for-frontend.md`,
+   sekcja „Proxying to a backend") — przegląda żąda `/api/backend/...`
+   (ten sam origin, bez CORS), Route Handler działa w procesie Node
+   Next.js, tam dopiero dokleja realny `BACKEND_API_KEY` (bez prefiksu,
+   serwerowy) do żądania do FastAPI. `client.ts`'s `BASE_URL` uproszczone
+   do względnej ścieżki `/api/backend` — cztery strony wymienione wyżej
+   **nie zostały w ogóle dotknięte** (świadomie odrzucona alternatywa:
+   pełny refaktor na Server Components z fetchowaniem w `page.tsx` —
+   wymagałby przepisania też mutacji, `triggerRun`/`resumeRun`/wyboru
+   kategorii w Review Queue, i wszystkich ich testów). Testy:
+   `route.test.ts` (mock `fetch`, wywołanie `GET`/`POST` bezpośrednio z
+   `NextRequest` — forward metody/ścieżki/query, doklejenie
+   `X-API-Key`, przekazanie body POST bez zmian, przekazanie statusu/JSON
+   błędu 1:1, `502` przy nieosiągalnym backendzie), `client.test.ts`
+   zaktualizowany na względne URL-e.
+
 2. [x] **Graph View** — renderowanie struktury grafu przy użyciu **React
    Flow** (`@xyflow/react` — zdecydowane, patrz
    [`14-spec-frontend-ui`](docs/14-spec-frontend-ui.md)); wymaga osobnej
@@ -374,11 +664,38 @@ _Checklisty: `[ ]` = do zrobienia, `[x]` = zrobione — odznaczać w miarę post
    `getLayoutedElements` z `modules/graph/` do `modules/common/` — teraz
    współdzielony przez `graph` i `runs`, zgodnie z regułą granic modułów.
 
-5. [ ] **Review Queue** — lista transakcji `needs_review` (kontrakt danych z
+5. [x] **Review Queue** — lista transakcji `needs_review` (kontrakt danych z
    [`06-spec-categorization`](docs/06-spec-categorization.md) i
    [`14-spec-frontend-ui`](docs/14-spec-frontend-ui.md)), akcja
    potwierdzenia/korekty wywołująca `POST /runs/{thread_id}/resume`.
-   *Zależy od Planu A kroku 6 (Categorization) — realny kształt danych.*
+   Zrobione: `modules/runs/pages/ReviewQueuePage.tsx`, route
+   `/runs/[threadId]/review`, link „Review" na `RunsPage` widoczny tylko
+   dla `status === 'waiting_for_review'`. Kontrakt danych wzięty wprost z
+   realnego kodu Planu A kroku 6
+   (`backend/src/finance_agent/subgraphs/categorization/nodes.py`,
+   `make_human_review`/`make_persist_category`): interrupt payload
+   `{pending_reviews: [{transaction_id, description, counterparty, amount,
+   suggested_category, suggested_confidence}]}`, resume payload
+   `{decisions: {transaction_id: category_name}}` — brak decyzji dla danej
+   transakcji zostaje `needs_review`, nie błąd. `RunState` w
+   `common/models/api.ts` przeprojektowany z płaskiego
+   `Record<string, unknown>` na `{values, pendingReviews}`, mirror
+   LangGraph `StateSnapshot.values`/`.interrupts` (`values`/`interrupts` to
+   osobne pola, nie jeden scalony słownik — sprawdzone bezpośrednio w
+   `langgraph.types` w `.venv`); `pendingReviews` dekoduje jedyny dziś
+   zdefiniowany kształt interruptu. **Decyzja z użytkownikiem:** dropdown
+   kategorii w korekcie zasilany nowym `ApiClient.getCategories()` —
+   mock-only rozszerzenie (analogiczne do `nodes`/`edges` w
+   `GraphStructureResponse` z kroku 2), celowo **nieobecne** w
+   `docs/13-spec-backend-api.md` — czy/jak dodać realny `GET /categories`
+   to decyzja backendowa/Python, poza zakresem tej pracy frontendowej.
+   `mockClient` rozszerzony o stanowy `reviewState`: `resumeRun` usuwa z
+   `pendingReviews` pozycje z decyzją i, gdy lista pustoszeje, przestawia
+   status runu na `completed` (mirror realnego zachowania — resume
+   odblokowuje graf, który leci dalej do końca). Nowy shadcn komponent
+   `select` (`npx shadcn@latest add select`, Base UI `@base-ui/react/select`
+   pod spodem — działa w testach Vitest z `@testing-library/user-event`
+   bez dodatkowych jsdom shimów, w przeciwieństwie do React Flow w kroku 2).
 
 6. [x] **Manual Trigger** — przycisk „uruchom teraz” wywołujący `POST /runs`.
    Zrobione: `modules/runs/components/TriggerRunButton.tsx` (pierwsze
@@ -388,8 +705,56 @@ _Checklisty: `[ ]` = do zrobienia, `[x]` = zrobione — odznaczać w miarę post
    realny backend (`POST` → `GET` pokazuje nowy wpis) niż statyczny
    fixture; `resetMockRuns()` (test-only) trzyma testy deterministycznymi.
 
-7. [ ] **Wykresy / breakdowny** — zastosowanie skilla `dataviz` do breakdownów
-   kategorii i trendów w Graph View / Run Detail.
+7. [x] **Wykresy / breakdowny** — zastosowanie skilla `dataviz` do breakdownów
+   kategorii i trendów w Graph View / Run Detail. **Realny stan przy
+   starcie tego kroku:** mimo że Plan A krok 8 (Cashflow calculation) jest
+   zrobiony, `graph/master.py`'s `_cashflow_calculation_node` odrzuca
+   wynik subgraphu (zwraca tylko `{"visited": [...]}`) i `api/routes.py`
+   nie ma żadnego endpointu wystawiającego te dane (`reporting` odtwarza
+   je tylko wewnętrznie do HTML maila) — większa luka niż przy Review
+   Queue (krok 5), gdzie realny kontrakt już istniał. **Decyzja z
+   użytkownikiem:** budować na prowizorycznym mocku frontendowym, bez
+   ruszania backendu/docs; realny endpoint to osobna decyzja
+   backendowa/Python poza zakresem tej pracy. Kontrakt danych mocka wzięty
+   1:1 z realnego kodu (`backend/src/finance_agent/subgraphs/cashflow/state.py`:
+   `PeriodSummary`/`CategoryBreakdownEntry`/`FixedCostStatusEntry`) — nowe
+   typy `CashflowSummary`/`PeriodSummary`/`CategoryBreakdownEntry`/
+   `FixedCostStatusEntry` w `common/models/api.ts`, nowa metoda
+   `ApiClient.getCashflowSummary(threadId)`; realny `client.ts` rzuca
+   czytelny błąd "not implemented" zamiast zgadywać ścieżkę REST (decyzja
+   backendowa). Brak jakiejkolwiek wielotygodniowej serii w realnym
+   kontrakcie — "trend" to tylko `weekly` (bieżący wyciąg) vs
+   `rolling_month` (narastająco), nie historia; mock i UI odzwierciedlają
+   to wprost jako dwie równoległe sekcje, bez fabrykowania historii, której
+   backend nigdy nie produkuje. **Forma wykresu (skill `dataviz`,
+   `choosing-a-form.md`):** breakdown per kategoria to **diverging
+   horizontal bar chart**, nie sequential — `category_breakdown` miesza
+   przychody (dodatnie) i wydatki (ujemne) w jednej liście, więc pasuje do
+   joba "above/below a baseline", nie "compare magnitude". Kolor: token
+   Tailwind (`blue-500`/`red-500`), nie surowe hexy z `palette.md` skilla —
+   projekt ma już swój system kolorów (`RunStatusBadge`), spójność z nim >
+   osobna paleta dla jednego wykresu. Fixed costs status: tabela + badge
+   (`FixedCostStatusBadge.tsx`, 1:1 wzorzec `RunStatusBadge.tsx`), nie
+   wykres. **Bez nowej biblioteki wykresów** (Recharts/`shadcn add chart`
+   itd.) — zgodnie z regułą „tylko oficjalne/ustalone biblioteki, pytaj
+   przed dodaniem": wykres w plain SVG/HTML/CSS wg
+   `marks-and-anatomy.md`/`components.md` (cienkie słupki `h-6`/24px,
+   zaokrąglony data-end przy końcu słupka/kwadratowy przy baseline, jeden
+   wspólny baseline/skala `maxAbs`, legenda Income/Expense, hover tooltip
+   per słupek, przycisk „Show as table" — accessibility twin wymagany
+   przez skill). Zrobione: `modules/runs/components/{StatTile,
+   FixedCostStatusBadge,CategoryBreakdownChart,CashflowSummaryPanel}.tsx`;
+   `RunDetailPage` woła `getCashflowSummary(threadId)` w osobnym
+   `useEffect`/stanie (błąd/loading nigdy nie blokuje istniejącej osi
+   czasu/grafu), renderuje panel pod dotychczasowym 3-kolumnowym gridem —
+   ten grid dostał stałą wysokość (`h-[480px] shrink-0` zamiast `flex-1`)
+   i strona zyskała `overflow-y-auto`, żeby nowa sekcja miała gdzie się
+   zmieścić bez łamania istniejącego layoutu wypełniającego viewport.
+   Testy: `CategoryBreakdownChart.test.tsx` (słupki+legenda, tooltip na
+   hover, przełącznik tabeli), `CashflowSummaryPanel.test.tsx` (obie
+   sekcje, stat tile'e, badge per status), `RunDetailPage.test.tsx`
+   rozszerzony, `mockClient.test.ts`/`client.test.ts` o `getCashflowSummary`
+   (mock zwraca dane; real client rzuca błąd).
 
 8. [ ] **Weryfikacja** — testy komponentów (Vitest) dla Review Queue i Graph
    View wg kryteriów w
@@ -405,11 +770,13 @@ _Checklisty: `[ ]` = do zrobienia, `[x]` = zrobione — odznaczać w miarę post
 
 Zebrane w jednym miejscu z linkami do specyfikacji źródłowych — do
 rozstrzygnięcia z użytkownikiem przed startem odpowiedniego kroku, nigdy
-nie zakładane. (Autoryzacja Drive i biblioteka Graph View zostały już
-rozstrzygnięte — patrz odpowiednie specyfikacje — i nie figurują tu
-dłużej.)
+nie zakładane. (Autoryzacja Drive, biblioteka Graph View, profil
+ryzyka/instrumenty/poduszka bezpieczeństwa dla kroku 9 i polityka retry dla
+kroku 11 zostały już rozstrzygnięte — patrz odpowiednie specyfikacje — i
+nie figurują tu dłużej.)
 
-| Otwarta kwestia | Blokuje | Specyfikacja |
-|---|---|---|
-| Profil ryzyka, lista instrumentów inwestycyjnych, wielkość poduszki bezpieczeństwa | Plan A krok 9 | [`08-spec-investment-analysis`](docs/08-spec-investment-analysis.md) |
-| Konkretne wartości SMTP i adresów odbiorców (format zmiennych już ustalony) | Plan A krok 11 | [`10-spec-email-delivery`](docs/10-spec-email-delivery.md) |
+Obecnie brak otwartych kwestii blokujących kolejne kroki. Jedyny pozostały
+"blokujący" element to realne wartości `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/
+`SMTP_PASSWORD`/`REPORT_RECIPIENT_EMAIL` w `.env` — ale (patrz krok 11
+wyżej) to nie blokuje budowy/testów, tylko realne uruchomienie; użytkownik
+uzupełni je sam, nigdy w czacie.

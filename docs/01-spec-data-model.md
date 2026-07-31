@@ -9,11 +9,11 @@ rekomendacje inwestycyjne, oraz stan checkpointera LangGraph.
 ## Zakres
 
 Wchodzi: schemat tabel domenowych i ich relacje. Nie wchodzi: konkretna
-zawartość danych referencyjnych (konta, kategorie, koszty stałe) — dostarczy je
-użytkownik później; to jest tylko struktura, którą wypełnią. Zobacz niżej
-(„Otwarte kwestie”) gdzie i jak ta rzeczywista zawartość będzie
-przechowywana — repo jest publiczne, więc to nie może być zwykły commitowany
-plik.
+zawartość danych referencyjnych (konta, kategorie, koszty stałe, ustawienia
+inwestycyjne) — dostarczy je użytkownik później; to jest tylko struktura,
+którą wypełnią. Zobacz niżej („Przechowywanie realnej zawartości”) gdzie i
+jak ta rzeczywista zawartość będzie przechowywana — repo jest publiczne,
+więc to nie może być zwykły commitowany plik.
 
 ## Wybór silnika bazy danych
 
@@ -36,7 +36,7 @@ erDiagram
     CATEGORIES ||--o{ FIXED_COSTS : "kategoryzuje"
     CATEGORIES ||--o{ CATEGORY_RULES : "przypisana przez regułę"
     FIXED_COSTS ||--o{ TRANSACTIONS : "dopasowuje (opcjonalnie)"
-    REPORTS ||--o{ INVESTMENT_RECOMMENDATIONS : "zawiera"
+    REPORTS |o--o{ INVESTMENT_RECOMMENDATIONS : "zawiera (opcjonalnie, patrz uwaga niżej)"
 
     ACCOUNTS {
         uuid id PK
@@ -75,6 +75,7 @@ erDiagram
         numeric category_confidence
         text review_status "auto | needs_review | confirmed"
         jsonb raw_details "pola z Opis/Typ transakcji poza description/counterparty, patrz [[04-spec-transaction-extraction]]"
+        uuid matched_fixed_cost_id FK "nullable, ustawiane przez fixed_costs_reconciliation, patrz [[05-spec-fixed-costs]]"
     }
 
     CATEGORIES {
@@ -111,9 +112,16 @@ erDiagram
         timestamptz sent_at
     }
 
+    INVESTMENT_SETTINGS {
+        uuid id PK
+        text risk_profile "conservative | balanced | aggressive"
+        numeric safety_buffer_amount
+        jsonb instruments "np. [\"etf\", \"term_deposit\", \"savings_account\"]"
+    }
+
     INVESTMENT_RECOMMENDATIONS {
         uuid id PK
-        uuid report_id FK
+        uuid report_id FK "nullable, patrz uwaga niżej"
         numeric surplus_amount
         text rationale
         jsonb allocation_proposal
@@ -142,9 +150,22 @@ erDiagram
   konsumuje, to nie jest jeszcze twarde wymaganie funkcjonalne.
 - `STATEMENTS.checksum` + `drive_file_id` razem zapobiegają podwójnemu
   przetworzeniu tego samego wyciągu (patrz [[03-spec-statement-verification]]).
-- `INVESTMENT_RECOMMENDATIONS.allocation_proposal` jako `jsonb` — struktura
-  wewnętrzna zależy od otwartej kwestii w [[08-spec-investment-analysis]]
-  (jakie instrumenty w ogóle rozważamy).
+- `TRANSACTIONS.matched_fixed_cost_id` jest jedyną trwałą daną z
+  reconciliation kosztów stałych — sama lista rozbieżności (brak
+  płatności/zmiana kwoty) jest efemeryczna, zwracana przez subgraph i
+  konsumowana od razu w tym samym przebiegu master grafu, nie ma osobnej
+  tabeli (patrz [[05-spec-fixed-costs]]).
+- `INVESTMENT_RECOMMENDATIONS.allocation_proposal` jako `jsonb` — kształt
+  `{instrument: kwota_pln}`, klucze ograniczone do instrumentów
+  potwierdzonych w [[08-spec-investment-analysis]] (`etf`/`term_deposit`/
+  `savings_account`).
+- `INVESTMENT_RECOMMENDATIONS.report_id` jest nullable — `investment_analysis`
+  biegnie przed `reporting` w master grafie
+  ([[11-spec-orchestration-scheduling]]), więc żaden `Report` jeszcze nie
+  istnieje w momencie zapisu rekomendacji. Krok 10 (reporting) uzupełnia
+  `report_id` po utworzeniu wiersza `Report` — ten sam "nullable aż do
+  momentu, gdy kolejny krok zna wartość" wzorzec co `Statement.period_start`/
+  `period_end`/`opening_balance`/`closing_balance` (patrz [[08-spec-investment-analysis]]).
 - Checkpointer LangGraph (tabele `checkpoints`, `checkpoint_writes` itd.)
   będzie żył w tej samej instancji Postgres, ale to osobne tabele zarządzane
   przez bibliotekę `langgraph-checkpoint-postgres`, nie modelowane tutaj
@@ -154,30 +175,34 @@ erDiagram
 
 Używane przez niemal wszystkie pozostałe specyfikacje (02–11).
 
-## Przechowywanie realnej zawartości `ACCOUNTS`, `CATEGORIES` i `FIXED_COSTS`
+## Przechowywanie realnej zawartości `ACCOUNTS`, `CATEGORIES`, `FIXED_COSTS` i `INVESTMENT_SETTINGS`
 
 **Zdecydowane** (repo jest publiczne na GitHubie, więc te dane — nazwy
-banków/kont, kategorii, kwoty kosztów stałych, kontrahenci — nie mogą
-trafić do gita jako zwykłe pliki):
+banków/kont, kategorii, kwoty kosztów stałych, kontrahenci, poduszka
+bezpieczeństwa, profil ryzyka — nie mogą trafić do gita jako zwykłe pliki):
 
 - Realne wartości żyją wyłącznie w plikach `data/local/accounts.json`,
-  `data/local/categories.json` i `data/local/fixed_costs.json`, objętych
-  `.gitignore` (nigdy nie trafiają do repozytorium).
+  `data/local/categories.json`, `data/local/fixed_costs.json` i
+  `data/local/investment_settings.json`, objętych `.gitignore` (nigdy nie
+  trafiają do repozytorium).
 - Struktura JSON odzwierciedla pola z ER diagramu wyżej: `ACCOUNTS` →
   tablica z co najwyżej jednym elementem (`display_name`, `bank_name` —
   jedno śledzone konto, patrz „Uwagi projektowe” wyżej); `CATEGORIES` →
   `name`, `score` (0-100, wymagane), `type`; `FIXED_COSTS` →
   `name`, `category` (odwołanie po nazwie kategorii, nie po `uuid`),
-  `expected_amount`, `frequency`.
+  `expected_amount`, `frequency`; `INVESTMENT_SETTINGS` → tablica z co
+  najwyżej jednym elementem (`risk_profile`, `safety_buffer_amount`,
+  `instruments` — patrz [[08-spec-investment-analysis]]).
 - W repo commitowane są tylko szablony `data/local/accounts.example.json`,
-  `data/local/categories.example.json` i `data/local/fixed_costs.example.json`
-  z fikcyjnymi wartościami — pokazują kształt danych, nie realną zawartość.
+  `data/local/categories.example.json`, `data/local/fixed_costs.example.json`
+  i `data/local/investment_settings.example.json` z fikcyjnymi wartościami —
+  pokazują kształt danych, nie realną zawartość.
 - Skrypt seedujący (`backend/scripts/seed_reference_data.py`) wczytuje te
-  pliki JSON i zapisuje je do Postgresa idempotentnie (konto: dopasowanie do
-  jedynego istniejącego wiersza `ACCOUNTS`, błąd jeśli `accounts.json` ma
-  więcej niż jeden wpis; kategorie/koszty stałe: dopasowanie po `name`;
-  `FIXED_COSTS.category` mapowane na `category_id` po nazwie kategorii) —
-  bezpieczny do wielokrotnego uruchamiania.
+  pliki JSON i zapisuje je do Postgresa idempotentnie (konto/ustawienia
+  inwestycyjne: dopasowanie do jedynego istniejącego wiersza, błąd jeśli
+  źródło ma więcej niż jeden wpis; kategorie/koszty stałe: dopasowanie po
+  `name`; `FIXED_COSTS.category` mapowane na `category_id` po nazwie
+  kategorii) — bezpieczny do wielokrotnego uruchamiania.
 - Sekrety (API keys, hasła) to osobna kategoria, patrz reguła 6 w
   `CLAUDE.md` — ta sekcja dotyczy danych osobistych/finansowych, nie
   credentiali.

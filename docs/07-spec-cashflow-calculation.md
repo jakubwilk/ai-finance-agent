@@ -16,14 +16,18 @@ formatowanie raportu (patrz [[09-spec-reporting]]).
 ## Wejście / Wyjście
 
 - **Wejście:** `TRANSACTIONS` skategoryzowane (`review_status IN (auto,
-  confirmed)`) dla danego `account_id` i okresu, wynik dopasowania kosztów
-  stałych z [[05-spec-fixed-costs]].
+  confirmed, needs_review)` — patrz „Otwarte kwestie” niżej) dla bieżącego
+  wyciągu, wynik dopasowania kosztów stałych z [[05-spec-fixed-costs]]
+  (`TRANSACTIONS.matched_fixed_cost_id`, już trwały w bazie).
 - **Wyjście:** struktura wyliczeń (przychody total, wydatki total per
-  kategoria, koszty stałe: opłacone/brakujące, `surplus = przychody -
-  wydatki`), przekazywana dalej do [[08-spec-investment-analysis]] i
-  [[09-spec-reporting]]. Do ustalenia przy implementacji, czy to trwały
-  rekord w bazie, czy wyliczenie efemeryczne trzymane tylko w stanie grafu
-  (`state`) między węzłami.
+  kategoria, koszty stałe: opłacone/brakujące/zmiana kwoty, `surplus =
+  przychody - wydatki`, zarówno dla bieżącego wyciągu jak i narastająco dla
+  miesiąca), przekazywana dalej do [[08-spec-investment-analysis]] i
+  [[09-spec-reporting]]. **Zdecydowane: wyliczenie efemeryczne**, zwracane
+  przez subgraph i trzymane tylko w stanie grafu między węzłami w obrębie
+  jednego przebiegu master grafu — ten sam wzorzec co reconciliation w
+  [[05-spec-fixed-costs]] (brak osobnej tabeli, bo kroki 08/09 jeszcze nie
+  istnieją i nie ma czytelnika, który wymagałby trwałości).
 
 ## Kroki / węzły grafu (subgraph `cashflow_calculation`)
 
@@ -48,13 +52,19 @@ formatowanie raportu (patrz [[09-spec-reporting]]).
 
 ## Otwarte kwestie
 
-- Czy transakcje ze statusem `needs_review` (jeszcze niepotwierdzone przez
-  człowieka) mają być wliczone do bilansu z ostrzeżeniem, czy pominięte do
-  czasu potwierdzenia — wpływa na dokładność raportu wysłanego w terminie,
-  jeśli przegląd człowieka się opóźni.
-- Definicja „tygodnia” do agregacji (tydzień kalendarzowy ISO vs. okres od
-  ostatniego wyciągu) — prawdopodobnie zgodna z cyklem wgrywania wyciągów,
-  do potwierdzenia.
+Obie kwestie rozstrzygnięte z użytkownikiem przy implementacji (Plan A krok 8):
+
+- ~~Czy transakcje ze statusem `needs_review`...~~ — **zdecydowane: wliczone,
+  z ostrzeżeniem.** Liczą się do sum wg tymczasowej kategorii z LLM
+  (`category_source="llm"`) — pieniądze faktycznie wyszły z konta niezależnie
+  od statusu przeglądu. `needs_review_count` w wyniku pozwala raportowi
+  (docs/09) ostrzec, ile transakcji czeka na potwierdzenie, zamiast po cichu
+  prezentować niepotwierdzoną kategoryzację jako pewną.
+- ~~Definicja „tygodnia”...~~ — **zdecydowane: okres bieżącego wyciągu**
+  (`STATEMENTS.period_start`/`period_end`), nie ISO tydzień kalendarzowy.
+  „Bieżący wyciąg” = ten sam koncept co w [[05-spec-fixed-costs]] (najpóźniejszy
+  `period_end` wśród `status == "processed"`) — spójne z resztą pipeline'u,
+  bez osobnej logiki kalendarzowej.
 
 ## Kryteria akceptacji / testy
 

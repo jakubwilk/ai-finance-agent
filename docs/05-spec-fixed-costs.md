@@ -30,15 +30,27 @@ wykrywanie rozbieżności. Nie wchodzi: samo wyliczenie bilansu — to konsumuje
    (tabela nie ma flagi aktywności — każdy wpis jest brany pod uwagę;
    użytkownik usuwa/edytuje wpis bezpośrednio w JSON, gdy koszt przestaje
    obowiązywać).
-2. `match_transactions` — dla każdego kosztu stałego, szukanie w
-   transakcjach bieżącego okresu pozycji o zbliżonej kwocie
-   (`expected_amount` ± tolerancja) i/lub dopasowanym kontrahencie/opisie.
-3. `flag_discrepancies` — dla kosztów bez dopasowania w obrębie okresu
-   bieżącego wyciągu (`STATEMENTS.period_start`/`period_end`) → flaga „brak
-   płatności”; dla dopasowanych transakcji z inną kwotą niż
-   `expected_amount` → flaga „zmiana kwoty”.
-4. `persist_reconciliation` — zapis wyników do wykorzystania przez
-   [[07-spec-cashflow-calculation]] i [[09-spec-reporting]].
+2. `match_transactions` — dla każdego kosztu stałego, szukanie wśród
+   transakcji bieżącego wyciągu (te ze statusem `processed` o najpóźniejszym
+   `period_end`) kandydata z tym samym `category_id` co koszt stały
+   (kategoryzacja działa zawsze przed tym krokiem — **zdecydowane**, sygnał
+   dopasowania to `category_id`, nie fuzzy-matching po
+   kontrahencie/opisie); przy kilku kandydatach w tej samej kategorii wygrywa
+   ten o kwocie najbliższej `expected_amount` (żeby dwa koszty stałe w jednej
+   kategorii nie „walczyły” o tę samą transakcję).
+3. `flag_discrepancies` — dla kosztów bez znalezionego kandydata → flaga
+   „brak płatności” (`missing_payment`); dla dopasowanego kandydata w
+   granicach tolerancji kwoty → `matched`; poza tolerancją → „zmiana kwoty”
+   (`amount_changed`) — **ważne:** tolerancja decyduje o klasyfikacji
+   rozbieżności, nie o tym, czy dopasowanie w ogóle istnieje (inaczej
+   transakcja o mocno zmienionej kwocie nigdy nie zostałaby powiązana ze
+   swoim kosztem stałym i błędnie wyglądałaby jak `missing_payment`).
+4. `persist_reconciliation` — zapisuje wyłącznie
+   `TRANSACTIONS.matched_fixed_cost_id` dla dopasowanych transakcji
+   (`matched`/`amount_changed`). Lista rozbieżności sama w sobie nie ma
+   osobnej tabeli — jest efemeryczna, zwracana przez subgraph i konsumowana
+   w tym samym przebiegu master grafu przez [[07-spec-cashflow-calculation]]
+   i [[09-spec-reporting]] (obie jeszcze niezaimplementowane).
 
 ## Zależności
 
@@ -49,11 +61,17 @@ wykrywanie rozbieżności. Nie wchodzi: samo wyliczenie bilansu — to konsumuje
 
 ## Otwarte kwestie
 
-- Do czasu, aż użytkownik uzupełni `data/local/fixed_costs.json` (patrz
-  [[01-spec-data-model]]) i backend zaimplementuje seed do Postgresa, tabela
-  jest pusta — subworkflow nie ma nic do dopasowania (no-op, nie błąd).
-- Tolerancja kwoty dopasowania (np. ± 5%) — do ustalenia z użytkownikiem lub
-  jako konfigurowalny parametr.
+Obie poniższe kwestie zostały rozstrzygnięte z użytkownikiem przy
+implementacji (Plan A krok 7):
+
+- ~~Do czasu, aż użytkownik uzupełni `data/local/fixed_costs.json`...~~ —
+  seed już zaimplementowany (Plan A krok 0); subworkflow jest jednak nadal
+  no-op (nie błąd) gdy tabela `FIXED_COSTS` jest pusta lub gdy nie ma
+  żadnego wyciągu o statusie `processed`.
+- ~~Tolerancja kwoty dopasowania...~~ — **zdecydowane: 5% `expected_amount`**,
+  stała w kodzie (`AMOUNT_TOLERANCE_RATIO` w
+  `subgraphs/fixed_costs/nodes.py`), nie parametr konfiguracyjny — ten sam
+  wzorzec co `BALANCE_TOLERANCE`/`DEFAULT_THRESHOLD` w innych subgrafach.
 
 ## Kryteria akceptacji / testy
 
