@@ -6,7 +6,12 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
-from finance_agent.db.models import Account, Statement, Transaction
+from finance_agent.db.models import (
+    Account,
+    InvestmentRecommendation,
+    Statement,
+    Transaction,
+)
 
 
 async def test_migration_creates_all_tables(db_session):
@@ -23,6 +28,8 @@ async def test_migration_creates_all_tables(db_session):
         "fixed_costs",
         "reports",
         "investment_recommendations",
+        "investment_settings",
+        "runs",
     } <= tables
 
 
@@ -82,6 +89,22 @@ async def test_statement_period_and_balance_columns_are_nullable(db_session):
             file_name="statement.pdf",
             checksum="abc123",
             status="pending",
+        )
+    )
+    await db_session.commit()
+
+
+async def test_investment_recommendation_report_id_is_nullable(db_session):
+    """investment_analysis (docs/08) runs before reporting (docs/09) in the
+    master graph, so no Report row exists yet when persist_recommendation
+    runs — report_id must accept NULL, to be backfilled once step 10 exists.
+    """
+    db_session.add(
+        InvestmentRecommendation(
+            report_id=None,
+            surplus_amount=Decimal("100.00"),
+            rationale="test",
+            allocation_proposal={"etf": "100.00"},
         )
     )
     await db_session.commit()

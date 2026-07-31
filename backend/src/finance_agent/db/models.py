@@ -151,6 +151,9 @@ class Transaction(Base):
     )
     review_status: Mapped[str] = mapped_column(Text, default="auto")
     raw_details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    matched_fixed_cost_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("fixed_costs.id"), nullable=True
+    )
 
 
 class FixedCost(Base):
@@ -197,16 +200,89 @@ class Report(Base):
     )
 
 
+class InvestmentSettings(Base):
+    """Single-row reference table (docs/08-spec-investment-analysis.md) —
+    same shape convention as `Account`. Real values seeded from the
+    gitignored `data/local/investment_settings.json`
+    (docs/01's "Przechowywanie realnej zawartości" section).
+    """
+
+    __tablename__ = "investment_settings"
+    __table_args__ = (
+        CheckConstraint(
+            "risk_profile IN ('conservative', 'balanced', 'aggressive')",
+            name="ck_investment_settings_risk_profile",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    risk_profile: Mapped[str] = mapped_column(Text)
+    safety_buffer_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    instruments: Mapped[list] = mapped_column(JSONB)
+
+
 class InvestmentRecommendation(Base):
     __tablename__ = "investment_recommendations"
 
     id: Mapped[uuid.UUID] = _uuid_pk()
-    report_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("reports.id")
+    report_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("reports.id"), nullable=True
     )
     surplus_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     rationale: Mapped[str] = mapped_column(Text)
     allocation_proposal: Mapped[dict] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
+    )
+
+
+class Run(Base):
+    """Lightweight, app-level tracking for master-graph invocations
+    (docs/13-spec-backend-api.md) — deliberately separate from the
+    checkpointer's own tables (`checkpoints`/`checkpoint_writes`, managed
+    entirely by `langgraph-checkpoint-postgres`, patrz docs/01). Exists
+    because the checkpointer alone can't answer "list all thread_ids" or
+    represent a `failed` run (an unhandled exception never produces a
+    checkpoint) — both needed by `GET /runs`.
+    """
+
+    __tablename__ = "runs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('running', 'completed', 'failed', 'waiting_for_review')",
+            name="ck_runs_status",
+        ),
+    )
+
+    thread_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    status: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
+class CashflowSummary(Base):
+    """Persisted output of the `cashflow_calculation` subgraph, keyed by the
+    `thread_id` that computed it — the subgraph itself always re-derives
+    "current statement" from the DB and is otherwise stateless per
+    invocation (`subgraphs/cashflow/graph.py`), so without this the computed
+    `CashflowState` was discarded the moment the master graph moved on to
+    the next node (docs/13-spec-backend-api.md's `GET
+    /runs/{thread_id}/cashflow`).
+    """
+
+    __tablename__ = "cashflow_summaries"
+
+    thread_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("runs.thread_id", ondelete="CASCADE"), primary_key=True
+    )
+    statement_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    weekly: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    rolling_month: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    fixed_costs_status: Mapped[list] = mapped_column(JSONB, default=list)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )

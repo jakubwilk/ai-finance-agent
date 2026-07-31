@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pl">
+  <body>
+    <h1>Raport miesięczny: {{ rolling_month.period_start }} – {{ rolling_month.period_end }}</h1>
+
+    <h2>Podsumowanie narastające</h2>
+    <table>
+      <tr><th>Przychody</th><td>{{ rolling_month.total_income }} PLN</td></tr>
+      <tr><th>Wydatki</th><td>{{ rolling_month.total_expense }} PLN</td></tr>
+      <tr><th>Nadwyżka</th><td>{{ rolling_month.surplus }} PLN</td></tr>
+    </table>
+
+    <h2>Wydatki i przychody per kategoria</h2>
+    <table>
+      <tr><th>Kategoria</th><th>Kwota</th></tr>
+      {% for entry in rolling_month.category_breakdown %}
+      <tr><td>{{ entry.category_name }}</td><td>{{ entry.total }} PLN</td></tr>
+      {% endfor %}
+    </table>
+
+    <h2>Porównanie z poprzednim miesiącem</h2>
+    <table>
+      <tr><th></th><th>Ten miesiąc</th><th>Poprzedni miesiąc</th></tr>
+      <tr>
+        <td>Przychody</td>
+        <td>{{ rolling_month.total_income }} PLN</td>
+        <td>{{ monthly_comparison.previous_month_income }} PLN</td>
+      </tr>
+      <tr>
+        <td>Wydatki</td>
+        <td>{{ rolling_month.total_expense }} PLN</td>
+        <td>{{ monthly_comparison.previous_month_expense }} PLN</td>
+      </tr>
+      <tr>
+        <td>Nadwyżka</td>
+        <td>{{ rolling_month.surplus }} PLN</td>
+        <td>{{ monthly_comparison.previous_month_surplus }} PLN</td>
+      </tr>
+    </table>
+
+    <h2>Rekomendacja inwestycyjna za miesiąc</h2>
+    {% if investment_recommendation and investment_recommendation.surplus_amount != "0" %}
+    <p>{{ investment_recommendation.rationale }}</p>
+    <table>
+      <tr><th>Instrument</th><th>Kwota</th></tr>
+      {% for instrument, amount in investment_recommendation.allocation_proposal.items() %}
+      <tr><td>{{ instrument }}</td><td>{{ amount }} PLN</td></tr>
+      {% endfor %}
+    </table>
+    {% elif investment_recommendation %}
+    <p>{{ investment_recommendation.rationale }}</p>
+    {% else %}
+    <p>Brak nadwyżki do zainwestowania w tym okresie.</p>
+    {% endif %}
+  </body>
+</html>

@@ -1,4 +1,5 @@
 import asyncio
+import sys
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from alembic import command
 from finance_agent.config import settings
+
+# psycopg's async mode (tests/test_checkpointer.py) is incompatible with
+# Windows' default ProactorEventLoop — verified directly
+# (`psycopg.InterfaceError: Psycopg cannot use the 'ProactorEventLoop'`).
+# asyncpg (every other DB test in this suite) works fine under either
+# policy, so this is safe process-wide, not just for checkpointer tests.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 

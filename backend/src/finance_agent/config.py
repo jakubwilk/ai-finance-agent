@@ -33,5 +33,7 @@ class Settings(BaseSettings):
 
     report_recipient_email: str | None = None
 
+    backend_api_key: str | None = None
+
 
 settings = Settings()

@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from finance_agent.db.models import Account, Category, FixedCost
+from finance_agent.db.models import Account, Category, FixedCost, InvestmentSettings
 from finance_agent.db.session import async_session_factory
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -44,6 +44,12 @@ class FixedCostSeed(BaseModel):
     category: str
     expected_amount: Decimal
     frequency: Literal["monthly", "quarterly", "yearly"]
+
+
+class InvestmentSettingsSeed(BaseModel):
+    risk_profile: Literal["conservative", "balanced", "aggressive"]
+    safety_buffer_amount: Decimal
+    instruments: list[Literal["etf", "term_deposit", "savings_account"]]
 
 
 def _load_json(path: Path) -> list[dict]:
@@ -70,6 +76,11 @@ def load_categories(data_dir: Path) -> list[CategorySeed]:
 def load_fixed_costs(data_dir: Path) -> list[FixedCostSeed]:
     raw = _load_json(data_dir / "fixed_costs.json")
     return [FixedCostSeed.model_validate(item) for item in raw]
+
+
+def load_investment_settings(data_dir: Path) -> list[InvestmentSettingsSeed]:
+    raw = _load_json(data_dir / "investment_settings.json")
+    return [InvestmentSettingsSeed.model_validate(item) for item in raw]
 
 
 async def upsert_accounts(session: AsyncSession, accounts: list[AccountSeed]) -> None:
@@ -144,10 +155,40 @@ async def upsert_fixed_costs(
     await session.flush()
 
 
+async def upsert_investment_settings(
+    session: AsyncSession, settings_list: list[InvestmentSettingsSeed]
+) -> None:
+    if len(settings_list) > 1:
+        raise ValueError(
+            "investment_settings.json musi zawierać co najwyżej jeden wpis — "
+            f"znaleziono {len(settings_list)}."
+        )
+    if not settings_list:
+        return
+
+    seed = settings_list[0]
+    existing = (await session.execute(select(InvestmentSettings))).scalars().first()
+    if existing is None:
+        session.add(
+            InvestmentSettings(
+                risk_profile=seed.risk_profile,
+                safety_buffer_amount=seed.safety_buffer_amount,
+                instruments=seed.instruments,
+            )
+        )
+    else:
+        existing.risk_profile = seed.risk_profile
+        existing.safety_buffer_amount = seed.safety_buffer_amount
+        existing.instruments = seed.instruments
+
+    await session.flush()
+
+
 async def seed(session: AsyncSession, data_dir: Path = DEFAULT_DATA_LOCAL_DIR) -> None:
     await upsert_accounts(session, load_accounts(data_dir))
     await upsert_categories(session, load_categories(data_dir))
     await upsert_fixed_costs(session, load_fixed_costs(data_dir))
+    await upsert_investment_settings(session, load_investment_settings(data_dir))
 
 
 async def main() -> None:

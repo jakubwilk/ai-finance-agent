@@ -1,6 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
 from sqlalchemy import select
 
 from finance_agent.db.models import Account, Statement, Transaction
@@ -83,6 +84,203 @@ def test_parse_card_payment_no_counterparty():
     assert txn["raw_details"]["kraj"] == "POLSKA"
     assert txn["raw_details"]["numer_karty"] == "123456******7890"
     assert txn["raw_details"]["oryginalna_kwota_operacji"] == "21,70 PLN"
+
+
+def test_parse_amount_handles_non_breaking_space_thousands_separator():
+    """Amounts over 999 use a thousands separator that isn't necessarily a
+    plain ASCII space in the PDF's actual character encoding (the `kwota`/
+    `saldo` values below use a real U+00A0 non-breaking space, not a plain
+    " " — a real statement's amount crashed `Decimal(...)` on exactly this
+    before the fix, despite looking like plain digits when printed). A
+    literal ASCII space would already have worked with the old
+    `.replace(" ", "")` code, so this specifically proves the fix, not just
+    re-tests the already-working case.
+    """
+    words_per_page = [
+        [
+            *_row(
+                100,
+                data_operacji="2026-01-07",
+                data_waluty="2026-01-07",
+                typ_transakcji="Przelew",
+                opis="Tytuł : WYPLATA TEST",
+                kwota="+1 234,56",
+                saldo="+5 678,90",
+            ),
+        ]
+    ]
+
+    transactions = PkoBpHistoriaRachunkuParser().parse("", words_per_page)
+
+    assert len(transactions) == 1
+    txn = transactions[0]
+    assert txn["amount"] == Decimal("1234.56")
+    assert txn["running_balance"] == Decimal("5678.90")
+
+
+def test_parse_amount_on_continuation_row_is_not_lost():
+    """A real export had a transaction whose `kwota`/`saldo` landed on a
+    continuation row rather than the date row itself — row-clustering
+    split what's logically one entry the same way it already can for
+    `typ_transakcji`/`opis` (handled), but `kwota`/`saldo` weren't merged
+    from continuation rows before this fix, so the amount came back as an
+    empty string and crashed `Decimal("")`.
+    """
+    words_per_page = [
+        [
+            *_row(
+                100,
+                data_operacji="2026-01-08",
+                data_waluty="2026-01-08",
+                typ_transakcji="Przelew",
+                opis="Tytuł : PRZELEW TEST",
+            ),
+            *_row(112, kwota="-50,00", saldo="+950,00"),
+        ]
+    ]
+
+    transactions = PkoBpHistoriaRachunkuParser().parse("", words_per_page)
+
+    assert len(transactions) == 1
+    txn = transactions[0]
+    assert txn["amount"] == Decimal("-50.00")
+    assert txn["running_balance"] == Decimal("950.00")
+
+
+def test_footer_row_text_in_kwota_column_is_not_mistaken_for_amount():
+    """A real export crashed with `ValueError: Could not parse amount as
+    Decimal after cleanup: 'obciążeń' (...)` — the continuation-row merge
+    (added to fix a previous bug) locked onto a footer/summary row's stray
+    label text ("obciążeń", not a number, and safe to show since it has no
+    digits) that happened to land in the kwota column's x0 range, landing
+    *before* the transaction's real numeric continuation row in row order.
+    Because the old code took the first non-empty value unconditionally, it
+    never gave the real amount a chance. The fix must reject the
+    non-numeric candidate and still pick up the real amount from the row
+    after it.
+    """
+    words_per_page = [
+        [
+            *_row(
+                100,
+                data_operacji="2026-01-09",
+                data_waluty="2026-01-09",
+                typ_transakcji="Przelew",
+                opis="Tytuł : PRZELEW TEST",
+            ),
+            *_row(106, kwota="obciążeń"),
+            *_row(112, kwota="-30,00", saldo="+920,00"),
+        ]
+    ]
+
+    transactions = PkoBpHistoriaRachunkuParser().parse("", words_per_page)
+
+    assert len(transactions) == 1
+    txn = transactions[0]
+    assert txn["amount"] == Decimal("-30.00")
+    assert txn["running_balance"] == Decimal("920.00")
+
+
+def test_missing_amount_error_surfaces_other_columns_for_diagnosis():
+    """When `kwota` is empty (e.g. the amount word never landed in the
+    kwota x0 column at all — a live report of this had a transaction whose
+    amount was nowhere to be found even after the continuation-row fixes),
+    the raised error should surface the other columns' (digit-redacted)
+    content too, so a column-drift theory can be confirmed/ruled out from
+    the traceback alone rather than by guessing at another fix blind.
+    """
+    words_per_page = [
+        [
+            *_row(
+                100,
+                data_operacji="2026-01-10",
+                data_waluty="2026-01-10",
+                typ_transakcji="Przelew",
+                opis="Tytuł : PRZELEW TEST 12345,67",
+            ),
+        ]
+    ]
+
+    with pytest.raises(ValueError, match="opis columns seen"):
+        PkoBpHistoriaRachunkuParser().parse("", words_per_page)
+
+
+def test_trailing_footer_summary_does_not_pollute_last_transaction():
+    """A real export crashed with an empty-amount error whose (safe, no
+    real amounts) diagnostic revealed the true cause: the statement's
+    trailing footer — a "Liczba obciążeń/Suma obciążeń/Liczba uznań/Suma
+    uznań" summary table, a legal disclaimer citing the Banking Law Act,
+    the account number, a print-date line, and a repeated column-header
+    row — was being merged into the *last real transaction* as
+    continuation lines (none of it has a date, so it fell through to the
+    `elif current is not None` branch). That footer content uses a
+    different column layout than the transaction table, so the last
+    transaction's own kwota/saldo (already present on its date row here)
+    would end up silently discarded/never looked at, and the footer text
+    would corrupt its description. This asserts the last transaction is
+    finalized as soon as footer/header content is detected, untouched by
+    it.
+    """
+    words_per_page = [
+        [
+            *_row(
+                100,
+                data_operacji="2026-01-11",
+                data_waluty="2026-01-11",
+                typ_transakcji="Przelew",
+                opis="Tytuł : PRZELEW TEST",
+                kwota="-40,00",
+                saldo="+960,00",
+            ),
+            *_row(112, opis="Liczba obciążeń Suma obciążeń"),
+            *_row(
+                124, typ_transakcji="na podstawie", opis="art. 111 Ustawy Prawo Bankowe"
+            ),
+            *_row(136, opis="z późniejszymi zmianami)."),
+            *_row(148, opis="data wydruku: 2026-01-15"),
+            *_row(
+                160, data_operacji="Data", typ_transakcji="Typ transakcji", opis="Opis"
+            ),
+        ]
+    ]
+
+    transactions = PkoBpHistoriaRachunkuParser().parse("", words_per_page)
+
+    assert len(transactions) == 1
+    txn = transactions[0]
+    assert txn["amount"] == Decimal("-40.00")
+    assert txn["running_balance"] == Decimal("960.00")
+    assert txn["description"] == "PRZELEW TEST"
+    assert txn["raw_details"]["typ_transakcji"] == "Przelew"
+
+
+def test_wide_amount_leaked_into_opis_column_is_reclaimed_as_kwota():
+    """A real export crashed with an empty-`kwota` error whose diagnostic
+    showed the `opis` column holding exactly one value shaped like an
+    amount (a 4-digit thousands amount, e.g. "1 234,56") while `kwota` and
+    `typ_transakcji` were both empty. Root cause: a wide, right-aligned
+    amount's left edge (x0) can cross the kwota column's lower bound and
+    land entirely in the `opis` bucket instead. This must be reclaimed as
+    the real `kwota` rather than raising or being treated as description
+    text.
+    """
+    words_per_page = [
+        [
+            *_row(
+                100,
+                data_operacji="2026-01-12",
+                data_waluty="2026-01-12",
+                opis="1 234,56",
+            ),
+        ]
+    ]
+
+    transactions = PkoBpHistoriaRachunkuParser().parse("", words_per_page)
+
+    assert len(transactions) == 1
+    txn = transactions[0]
+    assert txn["amount"] == Decimal("1234.56")
+    assert txn["description"] == ""
 
 
 def test_parse_outgoing_transfer_sets_counterparty_from_odbiorca():

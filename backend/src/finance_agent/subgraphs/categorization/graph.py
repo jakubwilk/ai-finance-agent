@@ -25,17 +25,21 @@ PERSIST_CATEGORY = "persist_category"
 def build_categorization_graph(
     session: AsyncSession,
     chat_model,
-    checkpointer: BaseCheckpointSaver,
+    checkpointer: BaseCheckpointSaver | None = None,
     *,
     threshold: Decimal = DEFAULT_THRESHOLD,
 ) -> CompiledStateGraph:
     """Build the categorization subgraph per docs/06-spec-categorization.md.
 
-    `checkpointer` is required (not optional/defaulted) — this subgraph's
-    whole point is `interrupt()`-based human review, which cannot function
-    without one. Not yet wired into the master graph (see docs/06 and
-    PLAN.md step 6) — that needs a master-level checkpointer/thread_id
-    scheme, PLAN.md step 12.
+    `checkpointer` defaults to `None`: when this subgraph is invoked from
+    inside a master-graph node function (`graph/master.py`'s
+    `_categorization_node`, PLAN.md step 12), it inherits the currently
+    running master graph's own checkpointer automatically — interrupts
+    propagate to the top-level graph regardless of nesting, verified
+    directly against LangGraph's docs/source before relying on it. Pass an
+    explicit checkpointer (e.g. `InMemorySaver()`, see
+    `tests/test_categorization_graph.py`) only when invoking this subgraph
+    standalone, outside the master graph.
     """
     builder = StateGraph(CategorizationState)
 

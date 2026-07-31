@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pl">
+  <body>
+    <h1>Raport tygodniowy: {{ weekly.period_start }} – {{ weekly.period_end }}</h1>
+
+    <h2>Podsumowanie</h2>
+    <table>
+      <tr><th>Przychody</th><td>{{ weekly.total_income }} PLN</td></tr>
+      <tr><th>Wydatki</th><td>{{ weekly.total_expense }} PLN</td></tr>
+      <tr><th>Nadwyżka</th><td>{{ weekly.surplus }} PLN</td></tr>
+    </table>
+
+    <h2>Wydatki i przychody per kategoria</h2>
+    <table>
+      <tr><th>Kategoria</th><th>Kwota</th></tr>
+      {% for entry in weekly.category_breakdown %}
+      <tr><td>{{ entry.category_name }}</td><td>{{ entry.total }} PLN</td></tr>
+      {% endfor %}
+    </table>
+
+    <h2>Koszty stałe</h2>
+    {% if fixed_costs_status %}
+    <table>
+      <tr><th>Nazwa</th><th>Oczekiwana kwota</th><th>Status</th></tr>
+      {% for fc in fixed_costs_status %}
+      <tr>
+        <td>{{ fc.fixed_cost_name }}</td>
+        <td>{{ fc.expected_amount }} PLN</td>
+        <td>{{ fc.status }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p>Brak skonfigurowanych kosztów stałych.</p>
+    {% endif %}
+
+    {% if needs_review_items %}
+    <h2>Transakcje do przeglądu</h2>
+    <table>
+      <tr><th>Opis</th><th>Kwota</th><th>Sugerowana kategoria</th></tr>
+      {% for item in needs_review_items %}
+      <tr>
+        <td>{{ item.description }}</td>
+        <td>{{ item.amount }} PLN</td>
+        <td>{{ item.suggested_category or "brak" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+
+    <h2>Propozycja inwestycyjna</h2>
+    {% if investment_recommendation and investment_recommendation.surplus_amount != "0" %}
+    <p>{{ investment_recommendation.rationale }}</p>
+    <table>
+      <tr><th>Instrument</th><th>Kwota</th></tr>
+      {% for instrument, amount in investment_recommendation.allocation_proposal.items() %}
+      <tr><td>{{ instrument }}</td><td>{{ amount }} PLN</td></tr>
+      {% endfor %}
+    </table>
+    {% elif investment_recommendation %}
+    <p>{{ investment_recommendation.rationale }}</p>
+    {% else %}
+    <p>Brak nadwyżki do zainwestowania w tym okresie.</p>
+    {% endif %}
+  </body>
+</html>
