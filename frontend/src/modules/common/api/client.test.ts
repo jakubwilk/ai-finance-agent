@@ -25,7 +25,7 @@ describe('client', () => {
     const result = await client.getGraphStructure();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:8000/graph/structure',
+      '/api/backend/graph/structure',
       expect.objectContaining({
         headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
       }),
@@ -36,41 +36,41 @@ describe('client', () => {
   it('GET /runs', async () => {
     const fetchMock = mockFetchOnce([]);
     await client.listRuns();
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/runs', expect.anything());
+    expect(fetchMock).toHaveBeenCalledWith('/api/backend/runs', expect.anything());
   });
 
   it('POST /runs', async () => {
     const fetchMock = mockFetchOnce({ threadId: 't1', status: 'running' });
     await client.triggerRun();
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:8000/runs',
+      '/api/backend/runs',
       expect.objectContaining({ method: 'POST' }),
     );
   });
 
   it('GET /runs/{thread_id}/state', async () => {
-    const fetchMock = mockFetchOnce({});
+    const fetchMock = mockFetchOnce({ values: {}, pendingReviews: [] });
     await client.getRunState('abc');
-    expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:8000/runs/abc/state',
-      expect.anything(),
-    );
+    expect(fetchMock).toHaveBeenCalledWith('/api/backend/runs/abc/state', expect.anything());
+  });
+
+  it('GET /categories', async () => {
+    const fetchMock = mockFetchOnce([]);
+    await client.getCategories();
+    expect(fetchMock).toHaveBeenCalledWith('/api/backend/categories', expect.anything());
   });
 
   it('GET /runs/{thread_id}/history', async () => {
     const fetchMock = mockFetchOnce([]);
     await client.getRunHistory('abc');
-    expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:8000/runs/abc/history',
-      expect.anything(),
-    );
+    expect(fetchMock).toHaveBeenCalledWith('/api/backend/runs/abc/history', expect.anything());
   });
 
   it('POST /runs/{thread_id}/resume with the resume payload', async () => {
     const fetchMock = mockFetchOnce({});
     await client.resumeRun('abc', { category: 'groceries' });
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:8000/runs/abc/resume',
+      '/api/backend/runs/abc/resume',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ resume: { category: 'groceries' } }),
@@ -78,10 +78,30 @@ describe('client', () => {
     );
   });
 
+  it('GET /runs/{thread_id}/cashflow', async () => {
+    const fetchMock = mockFetchOnce({
+      statementId: null,
+      weekly: null,
+      rollingMonth: null,
+      fixedCostsStatus: [],
+    });
+    await client.getCashflowSummary('abc');
+    expect(fetchMock).toHaveBeenCalledWith('/api/backend/runs/abc/cashflow', expect.anything());
+  });
+
+  it('DELETE /runs/{thread_id}', async () => {
+    const fetchMock = mockFetchOnce(undefined, { status: 204 });
+    await client.deleteRun('abc');
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/backend/runs/abc',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
   it('GET /health', async () => {
     const fetchMock = mockFetchOnce({ status: 'ok', database: true, ollama: true });
     await client.getHealth();
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/health', expect.anything());
+    expect(fetchMock).toHaveBeenCalledWith('/api/backend/health', expect.anything());
   });
 
   it('throws ApiError on a non-2xx response', async () => {

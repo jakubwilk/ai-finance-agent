@@ -41,9 +41,23 @@ describe('mockClient', () => {
     expect(after.map((run) => run.threadId)).toContain(triggered.threadId);
   });
 
-  it('returns run state', async () => {
+  it('returns a cashflow summary with weekly and rolling month periods', async () => {
+    const summary = await mockClient.getCashflowSummary('any-thread-id');
+    expect(summary.weekly?.categoryBreakdown.length).toBeGreaterThan(0);
+    expect(summary.rollingMonth?.categoryBreakdown.length).toBeGreaterThan(0);
+    expect(summary.fixedCostsStatus.length).toBeGreaterThan(0);
+  });
+
+  it('returns categories', async () => {
+    const categories = await mockClient.getCategories();
+    expect(categories.length).toBeGreaterThan(0);
+    expect(categories[0]).toHaveProperty('name');
+  });
+
+  it('returns run state with values and pending reviews', async () => {
     const state = await mockClient.getRunState('any-thread-id');
-    expect(state).toHaveProperty('visited');
+    expect(state.values).toHaveProperty('visited');
+    expect(state.pendingReviews.length).toBeGreaterThan(0);
   });
 
   it('returns run history as an ordered list of checkpoints', async () => {
@@ -56,6 +70,42 @@ describe('mockClient', () => {
   it('returns state from resumeRun', async () => {
     const state = await mockClient.resumeRun('any-thread-id', { category: 'groceries' });
     expect(state).toBeTruthy();
+  });
+
+  it('resumeRun resolves decided pending reviews and leaves the rest', async () => {
+    const before = await mockClient.getRunState('company-2026-W30');
+    const [first, ...rest] = before.pendingReviews;
+
+    const after = await mockClient.resumeRun('company-2026-W30', {
+      decisions: { [first.transactionId]: 'Groceries' },
+    });
+
+    expect(after.pendingReviews.map((r) => r.transactionId)).not.toContain(first.transactionId);
+    expect(after.pendingReviews).toHaveLength(rest.length);
+  });
+
+  it('resumeRun flips the run to completed once every pending review is decided', async () => {
+    const before = await mockClient.getRunState('company-2026-W30');
+    const decisions = Object.fromEntries(
+      before.pendingReviews.map((review) => [review.transactionId, 'Groceries']),
+    );
+
+    await mockClient.resumeRun('company-2026-W30', { decisions });
+
+    const runs = await mockClient.listRuns();
+    const run = runs.find((r) => r.threadId === 'company-2026-W30');
+    expect(run?.status).toBe('completed');
+  });
+
+  it('deleteRun removes the run from a subsequent listRuns call', async () => {
+    const before = await mockClient.listRuns();
+    const [target] = before;
+
+    await mockClient.deleteRun(target.threadId);
+    const after = await mockClient.listRuns();
+
+    expect(after.length).toBe(before.length - 1);
+    expect(after.map((run) => run.threadId)).not.toContain(target.threadId);
   });
 
   it('reports healthy status', async () => {

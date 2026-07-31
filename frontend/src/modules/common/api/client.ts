@@ -1,6 +1,8 @@
 import {
   ApiError,
   type ApiClient,
+  type CashflowSummary,
+  type Category,
   type GraphStructureResponse,
   type HealthResponse,
   type RunHistoryEntry,
@@ -8,7 +10,11 @@ import {
   type RunSummary,
 } from '@/modules/common/models/api';
 
-const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL ?? 'http://localhost:8000';
+// Relative — same-origin, routed through app/api/backend/[...path]/route.ts,
+// which is the only place `BACKEND_API_KEY` (docs/13's `require_api_key`)
+// gets attached. Keeping it out of this file means the browser bundle
+// never contains the key the way a `NEXT_PUBLIC_` variable would.
+const BASE_URL = '/api/backend';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
@@ -23,6 +29,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     );
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return (await response.json()) as T;
 }
 
@@ -33,6 +43,14 @@ export const client: ApiClient = {
 
   listRuns() {
     return request<RunSummary[]>('/runs');
+  },
+
+  getCategories() {
+    return request<Category[]>('/categories');
+  },
+
+  getCashflowSummary(threadId) {
+    return request<CashflowSummary>(`/runs/${threadId}/cashflow`);
   },
 
   triggerRun() {
@@ -52,6 +70,10 @@ export const client: ApiClient = {
       method: 'POST',
       body: JSON.stringify({ resume: resumeValue }),
     });
+  },
+
+  deleteRun(threadId) {
+    return request<void>(`/runs/${threadId}`, { method: 'DELETE' });
   },
 
   getHealth() {

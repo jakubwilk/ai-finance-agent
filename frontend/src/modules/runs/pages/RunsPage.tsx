@@ -12,6 +12,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { apiClient, type RunSummary } from '@/modules/common/api';
+import { DeleteRunButton } from '@/modules/runs/components/DeleteRunButton';
 import { RunStatusBadge } from '@/modules/runs/components/RunStatusBadge';
 import { TriggerRunButton } from '@/modules/runs/components/TriggerRunButton';
 
@@ -61,6 +62,14 @@ export function RunsPage() {
     });
   };
 
+  const handleDeleted = (threadId: string) => {
+    setState((prev) =>
+      prev.status === 'success'
+        ? { status: 'success', runs: prev.runs.filter((run) => run.threadId !== threadId) }
+        : prev,
+    );
+  };
+
   return (
     <div className="flex flex-1 flex-col p-4">
       <div className="mb-4 flex items-center justify-between">
@@ -98,12 +107,23 @@ export function RunsPage() {
                 <TableCell>{formatDate(run.createdAt)}</TableCell>
                 <TableCell>{formatDate(run.updatedAt)}</TableCell>
                 <TableCell>
-                  <Link
-                    href={`/runs/${run.threadId}`}
-                    className="text-primary underline-offset-4 hover:underline"
-                  >
-                    Details
-                  </Link>
+                  <div className="flex gap-3">
+                    <Link
+                      href={`/runs/${run.threadId}`}
+                      className="text-primary underline-offset-4 hover:underline"
+                    >
+                      Details
+                    </Link>
+                    {run.status === 'waiting_for_review' && (
+                      <Link
+                        href={`/runs/${run.threadId}/review`}
+                        className="text-primary underline-offset-4 hover:underline"
+                      >
+                        Review
+                      </Link>
+                    )}
+                    <DeleteRunButton threadId={run.threadId} onDeleted={handleDeleted} />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

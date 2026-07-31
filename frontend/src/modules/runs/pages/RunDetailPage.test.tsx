@@ -56,4 +56,14 @@ describe('RunDetailPage', () => {
     const backLink = screen.getByRole('link', { name: /back to runs/i });
     expect(backLink).toHaveAttribute('href', '/runs');
   });
+
+  it('renders the cashflow summary panel once it loads', async () => {
+    render(<RunDetailPage threadId="private-2026-W30" />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/^Weekly/)).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/^Rolling month to date/)).toBeInTheDocument();
+  });
 });

@@ -3,13 +3,26 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
-import { apiClient, type GraphStructureResponse, type RunHistoryEntry } from '@/modules/common/api';
+import {
+  apiClient,
+  type CashflowSummary,
+  type GraphStructureResponse,
+  type RunHistoryEntry,
+} from '@/modules/common/api';
 import { GraphView } from '@/modules/common/components/GraphView';
+import { CashflowSummaryPanel } from '@/modules/runs/components/CashflowSummaryPanel';
 
 type LoadState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
   | { status: 'success'; history: RunHistoryEntry[]; graph: GraphStructureResponse };
+
+// Cashflow summary loads independently — a failure here (or the endpoint
+// simply not existing on a real backend yet, see
+// ApiClient.getCashflowSummary's doc comment) must never block the
+// checkpoint timeline/graph above, which is the page's core feature.
+type CashflowLoadState =
+  { status: 'loading' } | { status: 'error' } | { status: 'success'; summary: CashflowSummary };
 
 export interface RunDetailPageProps {
   threadId: string;
@@ -22,6 +35,24 @@ function formatDate(iso: string) {
 export function RunDetailPage({ threadId }: RunDetailPageProps) {
   const [state, setState] = useState<LoadState>({ status: 'loading' });
   const [selectedStep, setSelectedStep] = useState<number | null>(null);
+  const [cashflowState, setCashflowState] = useState<CashflowLoadState>({ status: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    apiClient
+      .getCashflowSummary(threadId)
+      .then((summary) => {
+        if (!cancelled) setCashflowState({ status: 'success', summary });
+      })
+      .catch(() => {
+        if (!cancelled) setCashflowState({ status: 'error' });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [threadId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,7 +82,7 @@ export function RunDetailPage({ threadId }: RunDetailPageProps) {
   }, [threadId]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col p-4">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
       <Link
         href="/runs"
         className="mb-2 w-fit text-sm text-primary underline-offset-4 hover:underline"
@@ -78,6 +109,12 @@ export function RunDetailPage({ threadId }: RunDetailPageProps) {
           onSelectStep={setSelectedStep}
         />
       )}
+
+      {cashflowState.status === 'success' && (
+        <div className="mt-6 border-t border-border pt-4">
+          <CashflowSummaryPanel summary={cashflowState.summary} />
+        </div>
+      )}
     </div>
   );
 }
@@ -93,7 +130,7 @@ function RunDetailContent({ history, graph, selectedStep, onSelectStep }: RunDet
   const selected = history.find((entry) => entry.step === selectedStep) ?? null;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[minmax(200px,240px)_1fr_minmax(240px,320px)] gap-4">
+    <div className="grid h-[480px] shrink-0 grid-cols-[minmax(200px,240px)_1fr_minmax(240px,320px)] gap-4">
       <ol className="flex flex-col gap-1 overflow-y-auto" aria-label="Checkpoint timeline">
         {history.map((entry) => (
           <li key={entry.checkpointId}>

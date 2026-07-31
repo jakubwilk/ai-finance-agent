@@ -1,8 +1,11 @@
 import type {
+  Category,
+  CashflowSummary,
   GraphEdge,
   GraphNode,
   GraphStructureResponse,
   HealthResponse,
+  PendingReview,
   RunHistoryEntry,
   RunState,
   RunSummary,
@@ -137,10 +140,56 @@ export const MOCK_RUNS: RunSummary[] = [
   },
 ];
 
+// Generic placeholder names, never the user's real data/local/categories.json
+// content (see root CLAUDE.md, "Personal financial data: never commit real
+// values").
+export const MOCK_CATEGORIES: Category[] = [
+  { id: 'cat-groceries', name: 'Groceries', score: 90, type: 'expense' },
+  { id: 'cat-rent', name: 'Rent', score: 95, type: 'expense' },
+  { id: 'cat-subscriptions', name: 'Subscriptions', score: 40, type: 'expense' },
+  { id: 'cat-dining', name: 'Dining out', score: 30, type: 'expense' },
+  { id: 'cat-salary', name: 'Salary', score: 100, type: 'income' },
+  { id: 'cat-transfer', name: 'Transfer', score: 50, type: 'transfer' },
+];
+
+// Mirrors the categorization subgraph's `human_review` interrupt payload
+// (backend/src/finance_agent/subgraphs/categorization/nodes.py). One entry
+// has `suggestedCategory: null` to model the LLM-failure fallback from
+// docs/06-spec-categorization.md (confidence 0.0, no category guess).
+export const MOCK_PENDING_REVIEWS: PendingReview[] = [
+  {
+    transactionId: 'txn-1001',
+    description: 'Płatność kartą - sklep spożywczy',
+    counterparty: 'Sklep Spożywczy Sp. z o.o.',
+    amount: '-123.45',
+    suggestedCategory: 'Groceries',
+    suggestedConfidence: 0.62,
+  },
+  {
+    transactionId: 'txn-1002',
+    description: 'Przelew przychodzący',
+    counterparty: null,
+    amount: '250.00',
+    suggestedCategory: null,
+    suggestedConfidence: 0.0,
+  },
+  {
+    transactionId: 'txn-1003',
+    description: 'Płatność cykliczna - streaming',
+    counterparty: 'Streaming Provider',
+    amount: '-19.99',
+    suggestedCategory: 'Subscriptions',
+    suggestedConfidence: 0.71,
+  },
+];
+
 export const MOCK_RUN_STATE: RunState = {
-  verification_ok: true,
-  needs_review: true,
-  visited: ['ingestion', 'verification_pre', 'extraction', 'verification_post', 'categorization'],
+  values: {
+    verification_ok: true,
+    needs_review: true,
+    visited: ['ingestion', 'verification_pre', 'extraction', 'verification_post', 'categorization'],
+  },
+  pendingReviews: MOCK_PENDING_REVIEWS,
 };
 
 export const MOCK_RUN_HISTORY: RunHistoryEntry[] = [
@@ -171,4 +220,73 @@ export const MOCK_HEALTH: HealthResponse = {
   status: 'ok',
   database: true,
   ollama: true,
+};
+
+// Mirrors subgraphs/cashflow/state.py's PeriodSummary shape faithfully —
+// no real backend endpoint exists for this yet (see
+// ApiClient.getCashflowSummary's doc comment), so this fixture is the only
+// place the shape is exercised until Plan A adds one. `total` is signed:
+// positive entries are income categories, negative are expense, mirroring
+// breakdown_by_category grouping every transaction in the period, not just
+// expenses. One entry has `categoryId: null` for "Nieskategoryzowane".
+const WEEKLY_CATEGORY_BREAKDOWN = [
+  { categoryId: 'cat-salary', categoryName: 'Salary', total: '4500.00' },
+  { categoryId: 'cat-rent', categoryName: 'Rent', total: '-1800.00' },
+  { categoryId: 'cat-groceries', categoryName: 'Groceries', total: '-620.50' },
+  { categoryId: 'cat-subscriptions', categoryName: 'Subscriptions', total: '-89.97' },
+  { categoryId: null, categoryName: 'Nieskategoryzowane', total: '-45.00' },
+];
+
+const ROLLING_MONTH_CATEGORY_BREAKDOWN = [
+  { categoryId: 'cat-salary', categoryName: 'Salary', total: '9000.00' },
+  { categoryId: 'cat-rent', categoryName: 'Rent', total: '-3600.00' },
+  { categoryId: 'cat-groceries', categoryName: 'Groceries', total: '-1340.10' },
+  { categoryId: 'cat-dining', categoryName: 'Dining out', total: '-210.00' },
+  { categoryId: 'cat-subscriptions', categoryName: 'Subscriptions', total: '-179.94' },
+  { categoryId: null, categoryName: 'Nieskategoryzowane', total: '-45.00' },
+];
+
+export const MOCK_CASHFLOW_SUMMARY: CashflowSummary = {
+  statementId: 'stmt-2026-w30',
+  weekly: {
+    periodStart: '2026-07-20',
+    periodEnd: '2026-07-26',
+    totalIncome: '4500.00',
+    totalExpense: '-2555.47',
+    categoryBreakdown: WEEKLY_CATEGORY_BREAKDOWN,
+    needsReviewCount: 1,
+    surplus: '1944.53',
+  },
+  rollingMonth: {
+    periodStart: '2026-07-01',
+    periodEnd: '2026-07-26',
+    totalIncome: '9000.00',
+    totalExpense: '-5375.04',
+    categoryBreakdown: ROLLING_MONTH_CATEGORY_BREAKDOWN,
+    needsReviewCount: 2,
+    surplus: '3624.96',
+  },
+  fixedCostsStatus: [
+    {
+      fixedCostId: 'fc-rent',
+      fixedCostName: 'Rent',
+      expectedAmount: '1800.00',
+      actualAmount: '-1800.00',
+      status: 'matched',
+    },
+    {
+      fixedCostId: 'fc-internet',
+      fixedCostName: 'Internet',
+      expectedAmount: '60.00',
+      actualAmount: '-75.00',
+      status: 'amount_changed',
+    },
+    {
+      fixedCostId: 'fc-insurance',
+      fixedCostName: 'Insurance',
+      expectedAmount: '120.00',
+      actualAmount: null,
+      status: 'missing_payment',
+    },
+  ],
 };

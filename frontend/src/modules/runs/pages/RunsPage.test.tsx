@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { resetMockRuns } from '@/modules/common/api/mockClient';
@@ -73,6 +73,18 @@ describe('RunsPage', () => {
     expect(hrefs).toContain('/runs/private-2026-W30');
   });
 
+  it('links only waiting_for_review runs to the review queue', async () => {
+    render(<RunsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('company-2026-W30')).toBeInTheDocument();
+    });
+
+    const reviewLinks = screen.getAllByRole('link', { name: 'Review' });
+    expect(reviewLinks).toHaveLength(1);
+    expect(reviewLinks[0]).toHaveAttribute('href', '/runs/company-2026-W30/review');
+  });
+
   it('adds a new run to the table after clicking "Run now"', async () => {
     render(<RunsPage />);
 
@@ -88,5 +100,26 @@ describe('RunsPage', () => {
 
     const rows = screen.getAllByRole('row');
     expect(rows[1].textContent).toContain('Running');
+  });
+
+  it('removes a run from the table after confirming its deletion', async () => {
+    render(<RunsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('private-2026-W30')).toBeInTheDocument();
+    });
+
+    const row = screen.getByText('private-2026-W30').closest('tr');
+    if (!row) throw new Error('row not found');
+
+    fireEvent.click(within(row).getByRole('button', { name: 'Delete' }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('private-2026-W30')).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByText('company-2026-W30')).toBeInTheDocument();
   });
 });
